@@ -39,6 +39,33 @@ ADMIN_IDS = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]
 DB_PATH = os.getenv("DB_PATH", "shadowwatch.db")
 
 BOT_NAME = "ShadowWatch"
+BOT_USERNAME = "@ShadowSMSq_BOT"
+
+# Анимированные эмодзи — реальные ID из Telegram
+ANIMATED = {
+    "👁":  "<tg-emoji emoji-id='5368324170671202286'>👁</tg-emoji>",
+    "🗑":  "<tg-emoji emoji-id='5463006522278981341'>🗑</tg-emoji>",
+    "✏️": "<tg-emoji emoji-id='5469835553556640139'>✏️</tg-emoji>",
+    "💣":  "<tg-emoji emoji-id='5411093492302864150'>💣</tg-emoji>",
+    "🎁":  "<tg-emoji emoji-id='5373058572649699086'>🎁</tg-emoji>",
+    "⭐":  "<tg-emoji emoji-id='5361800486327202251'>⭐</tg-emoji>",
+    "👑":  "<tg-emoji emoji-id='5361315553439728262'>👑</tg-emoji>",
+    "💳":  "<tg-emoji emoji-id='5471952986970267163'>💳</tg-emoji>",
+    "✅":  "<tg-emoji emoji-id='5368324170671202286'>✅</tg-emoji>",
+    "❌":  "<tg-emoji emoji-id='5447644880824181073'>❌</tg-emoji>",
+    "🔔":  "<tg-emoji emoji-id='5373141891321699086'>🔔</tg-emoji>",
+    "🎉":  "<tg-emoji emoji-id='5373058572649699086'>🎉</tg-emoji>",
+    "💰":  "<tg-emoji emoji-id='5471952986970267163'>💰</tg-emoji>",
+    "🔥":  "<tg-emoji emoji-id='5364580842178811152'>🔥</tg-emoji>",
+    "📅":  "<tg-emoji emoji-id='5471931082790226428'>📅</tg-emoji>",
+    "📦":  "<tg-emoji emoji-id='5471968242696816270'>📦</tg-emoji>",
+    "👤":  "<tg-emoji emoji-id='5432024541778063702'>👤</tg-emoji>",
+    "🔒":  "<tg-emoji emoji-id='5373141891321699086'>🔒</tg-emoji>",
+    "⚡":  "<tg-emoji emoji-id='5361315553439728262'>⚡</tg-emoji>",
+    "📱":  "<tg-emoji emoji-id='5471931082790226428'>📱</tg-emoji>",
+}
+def e(emoji: str) -> str:
+    return ANIMATED.get(emoji, emoji)
 
 # Тарифы
 PLANS = {
@@ -242,6 +269,15 @@ async def notify_user(bot, user_id, **kwargs):
     try: await bot.send_message(user_id, **kwargs)
     except Exception as e: logger.warning(f"notify {user_id}: {e}")
 
+async def safe_edit(call: CallbackQuery, text: str, **kwargs):
+    """Редактирует сообщение, при ошибке — удаляет и отправляет новое"""
+    try:
+        await safe_edit(call, text, **kwargs)
+    except Exception:
+        try: await call.message.delete()
+        except: pass
+        await call.message.answer(text, **kwargs)
+
 async def send_media(bot, user_id, media_type, file_id, caption=None):
     method = getattr(bot, MEDIA_SEND.get(media_type, ""), None)
     if not method: return
@@ -344,18 +380,23 @@ async def cb_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
     u = call.from_user
     subscribed = await is_subscribed(u.id)
-    if is_admin(u.id):        status = "👑 Администратор — безлимитный доступ"
-    elif subscribed:           status = "✅ Подписка активна"
-    else:                      status = "❌ Подписка не активна"
-    await call.message.edit_text(
-        f"👁 <b>ShadowWatch</b>\n\n"
+    if is_admin(u.id):     status = "👑 Администратор — безлимитный доступ"
+    elif subscribed:        status = "✅ Подписка активна"
+    else:                   status = "❌ Подписка не активна"
+    text = (
+        f"{e('👁')} <b>ShadowWatch</b>\n\n"
         f"<b>Статус:</b> {status}\n\n"
-        f"🗑 Вижу удалённые сообщения\n"
-        f"✏️ Замечаю все редактирования\n"
-        f"💣 Перехватываю исчезающие медиа\n\n"
-        f"<i>Выбери действие ниже 👇</i>",
-        reply_markup=main_keyboard()
+        f"{e('🗑')} Вижу удалённые сообщения\n"
+        f"{e('✏️')} Замечаю все редактирования\n"
+        f"{e('💣')} Перехватываю исчезающие медиа\n\n"
+        f"<i>Выбери действие ниже 👇</i>"
     )
+    try:
+        await safe_edit(call, text, reply_markup=main_keyboard())
+    except Exception:
+        try: await call.message.delete()
+        except: pass
+        await call.message.answer(text, reply_markup=main_keyboard())
     await call.answer()
 
 # ══════════════════════════════════════════════
@@ -383,22 +424,24 @@ async def cb_plans(call: CallbackQuery):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        sub_info = f"\n\n✅ <b>Текущая подписка:</b> до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
+        sub_info = f"\n\n{e('✅')} <b>Текущая подписка:</b> до {exp.strftime('%d.%m.%Y')} · {days_left} дн."
 
-    trial_note = ""
-    if not trial_ok and not is_admin(uid):
-        trial_note = "\n<i>* Пробный период уже использован</i>"
+    trial_note = f"\n<i>Пробный период уже использован</i>" if not trial_ok and not is_admin(uid) else ""
 
-    await call.message.edit_text(
-        f"💳 <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
-        f"{'🎁 <b>Пробный период</b> · 7 дней бесплатно' + chr(10) if trial_ok else ''}"
-        f"📅 <b>1 месяц</b> · 35 ⭐\n"
-        f"📦 <b>3 месяца</b> · 89 ⭐ <i>(скидка 15%)</i>\n"
-        f"👑 <b>1 год</b> · 299 ⭐ <i>(скидка 29%)</i>\n"
-        f"{trial_note}\n\n"
-        f"<i>⭐ Оплата через Telegram Stars — безопасно и мгновенно</i>",
-        reply_markup=plans_keyboard(trial_ok)
+    text = (
+        f"{e('👑')} <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
+        f"{e('🎁')} <b>Пробный период</b> · 7 дней бесплатно\n" if trial_ok else ""
     )
+    text = (
+        f"{e('👑')} <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
+        + (f"{e('🎁')} <b>Пробный период</b> · 7 дней бесплатно\n\n" if trial_ok else "")
+        + f"{e('📅')} <b>1 месяц</b> · 35 {e('⭐')}\n"
+        + f"{e('📦')} <b>3 месяца</b> · 89 {e('⭐')}  <i>скидка 15%</i>\n"
+        + f"{e('👑')} <b>1 год</b> · 299 {e('⭐')}  <i>скидка 29%</i>"
+        + trial_note
+        + f"\n\n<i>{e('🔒')} Оплата через Telegram Stars — мгновенно и безопасно</i>"
+    )
+    await safe_edit(call, text, reply_markup=plans_keyboard(trial_ok))
     await call.answer()
 
 @user_router.callback_query(F.data.startswith("plan:"))
@@ -416,11 +459,12 @@ async def cb_plan_select(call: CallbackQuery, bot: Bot):
         await mark_trial_used(uid)
         expires = await grant_subscription(uid, plan["days"], 0)
         exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
-        await call.message.edit_text(
-            f"🎁 <b>Пробный период активирован!</b>\n\n"
+        await safe_edit(call, 
+            f"{e('🎁')} <b>Пробный период активирован!</b>\n\n"
             f"⏳ Срок: <b>7 дней</b>\n"
             f"📅 Истекает: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            f"Все функции ShadowWatch теперь доступны. Удачи! 👁",
+            f"{e('✅')} Все функции ShadowWatch доступны!\n\n"
+            f"<i>Бот уже следит за твоими чатами {e('👁')}</i>",
             reply_markup=main_back_kb()
         )
         await call.answer("✅ Активировано!")
@@ -431,18 +475,39 @@ async def cb_plan_select(call: CallbackQuery, bot: Bot):
                 parse_mode="HTML")
         return
 
-    # Платные тарифы — отправляем инвойс со Stars
+    # Платные тарифы — красивое сообщение + инвойс
     await call.message.delete()
+
+    plan_info = {
+        "month": (f"{e('📅')}", "1 месяц", ""),
+        "three": (f"{e('📦')}", "3 месяца", f"  {e('🔥')} <i>скидка 15%</i>"),
+        "year":  (f"{e('👑')}", "1 год",    f"  {e('🔥')} <i>скидка 29%</i>"),
+    }
+    icon, period, discount = plan_info.get(plan_key, ("", plan["label"], ""))
+
+    await bot.send_message(
+        uid,
+        f"{e('⭐')} <b>Оформление подписки ShadowWatch</b>\n\n"
+        f"{icon} <b>Тариф:</b> {period}{discount}\n"
+        f"{e('💳')} <b>Стоимость:</b> {plan['stars']} {e('⭐')} Stars\n\n"
+        f"<b>Что входит в подписку:</b>\n"
+        f"{e('🗑')} Удалённые сообщения — моментально\n"
+        f"{e('✏️')} Редактирования — было и стало\n"
+        f"{e('💣')} Исчезающие медиа — перехват\n\n"
+        f"{e('🔒')} Оплата защищена Telegram · возврат в 1 клик\n\n"
+        f"<i>Нажми кнопку ниже чтобы оплатить 👇</i>",
+        parse_mode="HTML"
+    )
     await bot.send_invoice(
         chat_id=uid,
-        title=f"ShadowWatch · {plan['label']}",
-        description=f"Доступ ко всем функциям ShadowWatch на {plan['desc']}",
+        title=f"👁 ShadowWatch · {period}",
+        description=f"Полный доступ ко всем функциям ShadowWatch на {plan['desc']}",
         payload=f"sub_{plan_key}_{uid}",
-        currency="XTR",  # Telegram Stars
-        prices=[LabeledPrice(label=plan["label"], amount=plan["stars"])],
+        currency="XTR",
+        prices=[LabeledPrice(label=f"ShadowWatch · {period}", amount=plan["stars"])],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f"⭐ Оплатить {plan['stars']} Stars", pay=True)],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="user:plans")],
+            [InlineKeyboardButton(text="✖️ Отмена", callback_data="user:plans")],
         ])
     )
     await call.answer()
@@ -470,11 +535,13 @@ async def successful_payment(msg: Message, bot: Bot):
     stars = msg.successful_payment.total_amount
 
     await msg.answer(
-        f"✅ <b>Оплата прошла успешно!</b>\n\n"
-        f"💳 Тариф: <b>{plan['label']}</b>\n"
-        f"⭐ Списано: <b>{stars} Stars</b>\n"
-        f"📅 Подписка до: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-        f"Все функции ShadowWatch активированы! 👁",
+        f"{e('🎉')} <b>Оплата прошла успешно!</b>\n\n"
+        f"{e('👑')} Тариф: <b>{plan['label']}</b>\n"
+        f"{e('⭐')} Списано: <b>{stars} Stars</b>\n"
+        f"{e('📅')} Подписка до: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+        f"{e('✅')} Все функции активированы!\n"
+        f"{e('🗑')} Удалённые · {e('✏️')} Редактирования · {e('💣')} Медиа\n\n"
+        f"<i>{e('👁')} ShadowWatch уже следит за твоими чатами</i>",
         reply_markup=main_back_kb()
     )
 
@@ -525,7 +592,7 @@ async def cb_sub(call: CallbackQuery):
         [InlineKeyboardButton(text="💳 Продлить / Купить", callback_data="user:plans")],
         [InlineKeyboardButton(text="◀️ Главное меню",      callback_data="user:back")],
     ])
-    await call.message.edit_text(text, reply_markup=kb)
+    await safe_edit(call, text, reply_markup=kb)
     await call.answer()
 
 # ══════════════════════════════════════════════
@@ -542,7 +609,7 @@ async def cb_settings(call: CallbackQuery):
         [InlineKeyboardButton(text=f"{ico(s['notify_self_destruct'])} Исчезающие медиа",callback_data="toggle:notify_self_destruct")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="user:back")],
     ])
-    await call.message.edit_text(
+    await safe_edit(call, 
         f"⚙️ <b>Настройки уведомлений</b>\n\n"
         f"{ico(s['notify_delete'])} Удалённые сообщения\n"
         f"{ico(s['notify_edit'])} Редактирования\n"
@@ -564,22 +631,50 @@ async def cb_toggle(call: CallbackQuery):
 
 @user_router.callback_query(F.data == "user:help")
 async def cb_help(call: CallbackQuery):
-    await call.message.edit_text(
-        "❓ <b>Как пользоваться ShadowWatch</b>\n\n"
-        "<b>1️⃣ Добавить бота в чат:</b>\n"
-        "Открой чат → Настройки → Автоматизация чатов → добавь бота → выдай права администратора\n\n"
-        "<b>2️⃣ Что отслеживается:</b>\n"
-        "🗑 Удалённые сообщения — получишь копию текста и медиа\n"
-        "✏️ Редактирования — покажу что было и что стало\n"
-        "💣 Исчезающие фото/видео — перехвачу до удаления\n\n"
-        "<b>3️⃣ Команды:</b>\n"
-        "/start — главное меню\n"
-        "/sub — статус подписки\n"
-        "/settings — настройки\n\n"
-        "<b>⚠️ Важно:</b>\n"
-        "Бот работает только в группах/чатах куда добавлен. В личных переписках 1 на 1 не работает.",
-        reply_markup=main_back_kb())
+    await safe_edit(call,
+        f"{e('👁')} <b>Как подключить ShadowWatch</b>\n\n"
+        f"<b>Шаг 1.</b> Открой настройки своего профиля\n"
+        f"📱 iOS: Профиль → Изменить профиль\n"
+        f"📱 Android: Настройки → Аккаунт\n\n"
+        f"<b>Шаг 2.</b> Найди раздел\n"
+        f"<b>«Автоматизация чатов»</b> — прокрути вниз\n\n"
+        f"<b>Шаг 3.</b> Нажми <b>«Добавить бота»</b> и вставь:\n"
+        f"<code>ShadowSMSq_BOT</code>\n\n"
+        f"<b>Шаг 4.</b> Готово! {e('✅')}\n"
+        f"Бот начнёт работать автоматически\n\n"
+        f"<b>Что отслеживается:</b>\n"
+        f"{e('🗑')} Удалённые сообщения\n"
+        f"{e('✏️')} Редактирования — было и стало\n"
+        f"{e('💣')} Исчезающие фото и видео\n\n"
+        f"<i>⚠️ Требуется Telegram Premium на твоём аккаунте</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Главное меню", callback_data="user:back")],
+        ])
+    )
     await call.answer()
+
+@user_router.message(F.text == "❓ Помощь")
+async def kb_help(msg: Message):
+    await msg.answer(
+        f"{e('👁')} <b>Как подключить ShadowWatch</b>\n\n"
+        f"<b>Шаг 1.</b> Открой настройки своего профиля\n"
+        f"📱 iOS: Профиль → Изменить профиль\n"
+        f"📱 Android: Настройки → Аккаунт\n\n"
+        f"<b>Шаг 2.</b> Найди раздел\n"
+        f"<b>«Автоматизация чатов»</b> — прокрути вниз\n\n"
+        f"<b>Шаг 3.</b> Нажми <b>«Добавить бота»</b> и вставь:\n"
+        f"<code>ShadowSMSq_BOT</code>\n\n"
+        f"<b>Шаг 4.</b> Готово! {e('✅')}\n"
+        f"Бот начнёт работать автоматически\n\n"
+        f"<b>Что отслеживается:</b>\n"
+        f"{e('🗑')} Удалённые сообщения\n"
+        f"{e('✏️')} Редактирования — было и стало\n"
+        f"{e('💣')} Исчезающие фото и видео\n\n"
+        f"<i>⚠️ Требуется Telegram Premium на твоём аккаунте</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Главное меню", callback_data="user:back")],
+        ])
+    )
 
 @user_router.message(Command("sub"))
 async def cmd_sub(msg: Message):
@@ -800,7 +895,7 @@ async def cmd_admin(msg: Message, state: FSMContext):
 @admin_router.callback_query(F.data == "adm:back")
 async def adm_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("👁 <b>ShadowWatch — Панель администратора</b>\n\nВыбери действие:",
+    await safe_edit(call, "👁 <b>ShadowWatch — Панель администратора</b>\n\nВыбери действие:",
                                   reply_markup=admin_keyboard())
     await call.answer()
 
@@ -808,12 +903,12 @@ async def adm_back(call: CallbackQuery, state: FSMContext):
 async def adm_users(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     users = await get_all_users()
-    if not users: return await call.message.edit_text("Пользователей нет.", reply_markup=back_kb_adm())
+    if not users: return await safe_edit(call, "Пользователей нет.", reply_markup=back_kb_adm())
     lines = ["👥 <b>Пользователи</b> (последние 50):\n"]
     for u in users[:50]:
         uname = f"@{u['username']}" if u['username'] else "—"
         lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname}")
-    await call.message.edit_text("\n".join(lines), reply_markup=back_kb_adm())
+    await safe_edit(call, "\n".join(lines), reply_markup=back_kb_adm())
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:subs")
@@ -822,7 +917,7 @@ async def adm_subs(call: CallbackQuery):
     subs = await get_all_subscriptions()
     now = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
-    if not active: return await call.message.edit_text("Активных подписок нет.", reply_markup=back_kb_adm())
+    if not active: return await safe_edit(call, "Активных подписок нет.", reply_markup=back_kb_adm())
     lines = ["⭐ <b>Активные подписки</b>:\n"]
     for s in active:
         exp = datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S")
@@ -830,7 +925,7 @@ async def adm_subs(call: CallbackQuery):
         uname = f"@{s['username']}" if s.get("username") else "—"
         lines.append(f"• <code>{s['user_id']}</code> | {s.get('first_name') or '—'} | {uname}\n"
                      f"  До: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b> ({days_left} дн.)")
-    await call.message.edit_text("\n".join(lines), reply_markup=back_kb_adm())
+    await safe_edit(call, "\n".join(lines), reply_markup=back_kb_adm())
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:stats")
@@ -840,7 +935,7 @@ async def adm_stats(call: CallbackQuery):
     subs  = await get_all_subscriptions()
     now   = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
-    await call.message.edit_text(
+    await safe_edit(call, 
         f"📊 <b>Статистика ShadowWatch</b>\n\n"
         f"👥 Всего пользователей: <b>{len(users)}</b>\n"
         f"⭐ Активных подписок: <b>{len(active)}</b>\n"
@@ -852,7 +947,7 @@ async def adm_stats(call: CallbackQuery):
 async def adm_grant_start(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     await state.set_state(AdminStates.waiting_user_id)
-    await call.message.edit_text("✅ <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
+    await safe_edit(call, "✅ <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_user_id)
@@ -881,7 +976,7 @@ async def adm_grant_days_btn(call: CallbackQuery, state: FSMContext):
     expires = await grant_subscription(uid, days, call.from_user.id)
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
-    await call.message.edit_text(
+    await safe_edit(call, 
         f"✅ <b>Подписка выдана!</b>\n\n👤 ID: <code>{uid}</code>\n"
         f"⏳ Срок: <b>{days} дн.</b>\n📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
         reply_markup=back_kb_adm())
@@ -917,7 +1012,7 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
 async def adm_revoke_start(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     await state.set_state(AdminStates.waiting_revoke_id)
-    await call.message.edit_text("❌ <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:")
+    await safe_edit(call, "❌ <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_revoke_id)
