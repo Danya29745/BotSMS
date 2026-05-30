@@ -18,7 +18,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup,
-    InlineKeyboardButton, Update, LabeledPrice, PreCheckoutQuery
+    InlineKeyboardButton, Update, LabeledPrice, PreCheckoutQuery,
+    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
+    BusinessConnection
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -267,6 +269,17 @@ def main_back_kb():
         [InlineKeyboardButton(text="◀️ Главное меню", callback_data="user:back")]
     ])
 
+def reply_keyboard():
+    """Постоянная клавиатура внизу экрана"""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💳 Тарифы"), KeyboardButton(text="📋 Моя подписка")],
+            [KeyboardButton(text="⚙️ Настройки"),  KeyboardButton(text="❓ Помощь")],
+        ],
+        resize_keyboard=True,
+        persistent=True
+    )
+
 # ══════════════════════════════════════════════
 # РОУТЕРЫ
 # ══════════════════════════════════════════════
@@ -305,7 +318,7 @@ async def cmd_start(msg: Message, state: FSMContext):
     subscribed = await is_subscribed(u.id)
 
     if is_admin(u.id):
-        status = "👑 Администратор"
+        status = "👑 Администратор — безлимитный доступ"
     elif subscribed:
         sub = await get_subscription(u.id)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
@@ -318,31 +331,28 @@ async def cmd_start(msg: Message, state: FSMContext):
         f"👁 <b>ShadowWatch</b>\n\n"
         f"Привет, {u.first_name}! 👋\n\n"
         f"<b>Статус:</b> {status}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🗑 Вижу удалённые сообщения\n"
         f"✏️ Замечаю все редактирования\n"
-        f"💣 Перехватываю исчезающие медиа\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💣 Перехватываю исчезающие медиа\n\n"
         f"<i>Выбери действие ниже 👇</i>",
-        reply_markup=main_keyboard()
+        reply_markup=reply_keyboard()
     )
+    await msg.answer("Меню:", reply_markup=main_keyboard())
 
 @user_router.callback_query(F.data == "user:back")
 async def cb_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
     u = call.from_user
     subscribed = await is_subscribed(u.id)
-    if is_admin(u.id):        status = "👑 Администратор"
+    if is_admin(u.id):        status = "👑 Администратор — безлимитный доступ"
     elif subscribed:           status = "✅ Подписка активна"
     else:                      status = "❌ Подписка не активна"
     await call.message.edit_text(
         f"👁 <b>ShadowWatch</b>\n\n"
         f"<b>Статус:</b> {status}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🗑 Вижу удалённые сообщения\n"
         f"✏️ Замечаю все редактирования\n"
-        f"💣 Перехватываю исчезающие медиа\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💣 Перехватываю исчезающие медиа\n\n"
         f"<i>Выбери действие ниже 👇</i>",
         reply_markup=main_keyboard()
     )
@@ -602,8 +612,174 @@ async def cmd_settings_msg(msg: Message):
         reply_markup=kb)
 
 # ══════════════════════════════════════════════
-# АДМИН ПАНЕЛЬ
+# ОБРАБОТЧИКИ ПОСТОЯННОЙ КЛАВИАТУРЫ
 # ══════════════════════════════════════════════
+
+@user_router.message(F.text == "💳 Тарифы")
+async def kb_plans(msg: Message):
+    uid = msg.from_user.id
+    trial_ok = not await has_used_trial(uid) and not is_admin(uid)
+    subscribed = await is_subscribed(uid)
+    sub_info = ""
+    if subscribed:
+        sub = await get_subscription(uid)
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        days_left = (exp - datetime.now()).days
+        sub_info = f"\n\n✅ <b>Текущая подписка:</b> до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
+    trial_note = "\n<i>Пробный период уже использован</i>" if not trial_ok and not is_admin(uid) else ""
+    await msg.answer(
+        f"💳 <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
+        f"{'🎁 <b>Пробный период</b> · 7 дней бесплатно' + chr(10) if trial_ok else ''}"
+        f"📅 <b>1 месяц</b> · 35 ⭐\n"
+        f"📦 <b>3 месяца</b> · 89 ⭐ <i>(скидка 15%)</i>\n"
+        f"👑 <b>1 год</b> · 299 ⭐ <i>(скидка 29%)</i>\n"
+        f"{trial_note}\n\n"
+        f"<i>⭐ Оплата через Telegram Stars — безопасно и мгновенно</i>",
+        reply_markup=plans_keyboard(trial_ok)
+    )
+
+@user_router.message(F.text == "📋 Моя подписка")
+async def kb_sub(msg: Message):
+    uid = msg.from_user.id
+    if is_admin(uid):
+        text = "👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям"
+    else:
+        sub = await get_subscription(uid)
+        if not sub:
+            text = "❌ <b>Подписка не активна</b>\n\nОформи подписку чтобы получить доступ ко всем функциям."
+        else:
+            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
+            if exp > now:
+                days_left = (exp - now).days
+                text = f"✅ <b>Подписка активна</b>\n\n📅 Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n⏳ Осталось: <b>{days_left} дн.</b>"
+            else:
+                text = f"⏰ <b>Подписка истекла</b>\n\nДата: {exp.strftime('%d.%m.%Y %H:%M')}\nОформи новую подписку."
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Продлить / Купить", callback_data="user:plans")],
+    ])
+    await msg.answer(text, reply_markup=kb)
+
+@user_router.message(F.text == "⚙️ Настройки")
+async def kb_settings(msg: Message):
+    s = await get_user_settings(msg.from_user.id)
+    def ico(v): return "🟢" if v else "🔴"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{ico(s['notify_delete'])} Удалённые сообщения",     callback_data="toggle:notify_delete")],
+        [InlineKeyboardButton(text=f"{ico(s['notify_edit'])} Редактирования",            callback_data="toggle:notify_edit")],
+        [InlineKeyboardButton(text=f"{ico(s['notify_self_destruct'])} Исчезающие медиа", callback_data="toggle:notify_self_destruct")],
+    ])
+    await msg.answer(
+        f"⚙️ <b>Настройки уведомлений</b>\n\n"
+        f"{ico(s['notify_delete'])} Удалённые сообщения\n"
+        f"{ico(s['notify_edit'])} Редактирования\n"
+        f"{ico(s['notify_self_destruct'])} Исчезающие медиа\n\n"
+        f"<i>Нажми на пункт чтобы включить/выключить</i>",
+        reply_markup=kb)
+
+@user_router.message(F.text == "❓ Помощь")
+async def kb_help(msg: Message):
+    await msg.answer(
+        "❓ <b>Как пользоваться ShadowWatch</b>\n\n"
+        "1️⃣ <b>Подключи бота:</b>\n"
+        "Настройки профиля → Автоматизация чатов → добавь @ShadowSMSq_BOT\n\n"
+        "2️⃣ <b>Что отслеживается:</b>\n"
+        "🗑 Удалённые сообщения — получишь копию текста и медиа\n"
+        "✏️ Редактирования — покажу что было и что стало\n"
+        "💣 Исчезающие фото/видео — перехвачу до удаления\n\n"
+        "3️⃣ <b>Команды:</b>\n"
+        "/start — главное меню\n"
+        "/settings — настройки уведомлений\n\n"
+        "💬 <b>Поддержка:</b> напиши администратору",
+        reply_markup=main_back_kb())
+
+# ══════════════════════════════════════════════
+# ПОДКЛЮЧЕНИЕ ЧЕРЕЗ BUSINESS (Secretary Mode)
+# ══════════════════════════════════════════════
+
+@user_router.business_connection()
+async def on_business_connection(bc: BusinessConnection, bot: Bot):
+    uid = bc.user.id
+    await upsert_user(uid, bc.user.username, bc.user.first_name)
+
+    if not bc.is_enabled:
+        # Бот отключён от аккаунта
+        try:
+            await bot.send_message(uid,
+                "😔 <b>ShadowWatch отключён</b>\n\n"
+                "Ты отключил бота от своего аккаунта.\n"
+                "Чтобы снова включить — добавь бота в Автоматизацию чатов.\n\n"
+                "🤖 @ShadowSMSq_BOT",
+                reply_markup=reply_keyboard()
+            )
+        except: pass
+        return
+
+    # Активируем пробный период если не использован
+    trial_activated = False
+    if not await has_used_trial(uid) and not is_admin(uid) and not await is_subscribed(uid):
+        await mark_trial_used(uid)
+        await grant_subscription(uid, 7, 0)
+        trial_activated = True
+
+    sub = await get_subscription(uid)
+    exp_str = ""
+    if sub:
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        exp_str = exp.strftime("%d.%m.%Y")
+
+    if trial_activated:
+        text = (
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}! 🎉\n\n"
+            f"🎁 <b>Пробный период активирован — 7 дней бесплатно!</b>\n"
+            f"📅 Действует до: <b>{exp_str}</b>\n\n"
+            f"Теперь я слежу за твоими чатами:\n"
+            f"🗑 Удалённые сообщения — сразу пришлю копию\n"
+            f"✏️ Редактирования — покажу что изменили\n"
+            f"💣 Исчезающие медиа — перехвачу до удаления\n\n"
+            f"<i>Используй меню ниже для управления 👇</i>\n\n"
+            f"🤖 @ShadowSMSq_BOT"
+        )
+    elif await is_subscribed(uid) or is_admin(uid):
+        text = (
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}! ✅\n\n"
+            f"Бот успешно подключён к твоему аккаунту.\n"
+            f"Все уведомления активны и работают.\n\n"
+            f"🗑 Удалённые сообщения\n"
+            f"✏️ Редактирования\n"
+            f"💣 Исчезающие медиа\n\n"
+            f"<i>Используй меню ниже для управления 👇</i>\n\n"
+            f"🤖 @ShadowSMSq_BOT"
+        )
+    else:
+        text = (
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}! 👋\n\n"
+            f"Бот подключён, но для работы нужна подписка.\n\n"
+            f"💳 Оформи подписку чтобы начать получать уведомления:\n"
+            f"📅 1 месяц · 35 ⭐\n"
+            f"📦 3 месяца · 89 ⭐\n"
+            f"👑 1 год · 299 ⭐\n\n"
+            f"🤖 @ShadowSMSq_BOT"
+        )
+
+    try:
+        await bot.send_message(uid, text, reply_markup=reply_keyboard())
+        await bot.send_message(uid, "Меню:", reply_markup=main_keyboard())
+    except Exception as e:
+        logger.warning(f"business_connection notify {uid}: {e}")
+
+    # Уведомляем админа
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id,
+                f"🔗 <b>Новое Business подключение!</b>\n\n"
+                f"👤 {user_link(uid, bc.user.first_name, bc.user.username)}\n"
+                f"{'🎁 Активирован пробный период' if trial_activated else '✅ Уже подписан'}",
+                parse_mode="HTML")
+        except: pass
 
 def admin_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -815,7 +991,7 @@ async def _notify_deleted(bot: Bot, cached: dict):
     chat_label = ""
     notify_text = (
         f"🗑 <b>Удалённое сообщение</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f""
         f"📅 <b>{now_str}</b>\n"
         f"👤 <b>Автор:</b> {sender}\n"
     )
@@ -823,7 +999,7 @@ async def _notify_deleted(bot: Bot, cached: dict):
         notify_text += f"\n💬 <b>Текст сообщения:</b>\n<blockquote>{text_preview}</blockquote>\n"
     if media_type:
         notify_text += f"\n{emoji} <b>Медиа:</b> {media_type}\n"
-    notify_text += f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+    notify_text += f"\n🤖 @ShadowSMSq_BOT"
     for admin_id in ADMIN_IDS:
         if await should_notify(admin_id, "notify_delete"):
             await notify_user(bot, admin_id, text=notify_text, parse_mode="HTML")
@@ -842,13 +1018,13 @@ async def handle_edited(msg: Message, bot: Bot):
         def trim(t): return "<i>пусто</i>" if not t else (t[:300] + "…") if len(t) > 300 else t
         notify_text = (
             f"✏️ <b>Изменённое сообщение</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f""
             f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
             f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
             f"📝 <b>Было:</b>\n<blockquote>{trim(old_text)}</blockquote>\n\n"
             f"📝 <b>Стало:</b>\n<blockquote>{trim(new_text)}</blockquote>\n"
-            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+            f"\n🤖 @ShadowSMSq_BOT"
         )
         for admin_id in ADMIN_IDS:
             if await should_notify(admin_id, "notify_edit"):
@@ -878,12 +1054,12 @@ async def cache_incoming(msg: Message, bot: Bot):
     if is_self_destruct and media_type and file_id:
         caption = (
             f"💣 <b>Исчезающее медиа перехвачено!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f""
             f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
             f"👤 <b>От:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n"
             f"{MEDIA_EMOJI.get(media_type, '📎')} <b>Тип:</b> {media_type}\n"
-            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+            f"\n🤖 @ShadowSMSq_BOT"
         )
         for admin_id in ADMIN_IDS:
             if await should_notify(admin_id, "notify_self_destruct"):
@@ -919,13 +1095,13 @@ async def handle_edited_business(msg: Message, bot: Bot):
         def trim(t): return "<i>пусто</i>" if not t else (t[:300] + "…") if len(t) > 300 else t
         notify_text = (
             f"✏️ <b>Изменённое сообщение</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f""
             f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
             f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
             f"📝 <b>Было:</b>\n<blockquote>{trim(old_text)}</blockquote>\n\n"
             f"📝 <b>Стало:</b>\n<blockquote>{trim(new_text)}</blockquote>\n"
-            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+            f"\n🤖 @ShadowSMSq_BOT"
         )
         for admin_id in ADMIN_IDS:
             if await should_notify(admin_id, "notify_edit"):
