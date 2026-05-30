@@ -744,7 +744,7 @@ async def cache_incoming(msg: Message, bot: Bot):
                 await notify_user(bot, admin_id, text=caption, parse_mode="HTML")
                 await send_media(bot, admin_id, media_type, file_id)
 
-event_router.update.middleware(DeletedMessageMiddleware())
+
 
 # ══════════════════════════════════════════════
 # ЗАПУСК
@@ -753,6 +753,7 @@ event_router.update.middleware(DeletedMessageMiddleware())
 async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp  = Dispatcher()
+    dp.update.middleware(DeletedMessageMiddleware())
     dp.include_router(admin_router)
     dp.include_router(user_router)
     dp.include_router(event_router)
