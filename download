@@ -1,0 +1,36 @@
+# Секреты — НИКОГДА не коммитить!
+.env
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+
+# Логи
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Загрузки бота
+downloads/
+media/
