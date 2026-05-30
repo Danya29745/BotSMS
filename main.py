@@ -811,11 +811,19 @@ async def _notify_deleted(bot: Bot, cached: dict):
     media_type = cached.get("media_type")
     file_id    = cached.get("file_id")
     emoji = MEDIA_EMOJI.get(media_type, "") if media_type else ""
-    notify_text = (f"🗑 <b>Сообщение удалено!</b>\n\n"
-                   f"👤 Автор: {sender}\n"
-                   f"🕒 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
-    if text_preview: notify_text += f"\n\n📝 <b>Текст:</b>\n{text_preview}"
-    if media_type:   notify_text += f"\n{emoji} Медиа: <b>{media_type}</b>"
+    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    chat_label = ""
+    notify_text = (
+        f"🗑 <b>Удалённое сообщение</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📅 <b>{now_str}</b>\n"
+        f"👤 <b>Автор:</b> {sender}\n"
+    )
+    if text_preview:
+        notify_text += f"\n💬 <b>Текст сообщения:</b>\n<blockquote>{text_preview}</blockquote>\n"
+    if media_type:
+        notify_text += f"\n{emoji} <b>Медиа:</b> {media_type}\n"
+    notify_text += f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
     for admin_id in ADMIN_IDS:
         if await should_notify(admin_id, "notify_delete"):
             await notify_user(bot, admin_id, text=notify_text, parse_mode="HTML")
@@ -824,8 +832,8 @@ async def _notify_deleted(bot: Bot, cached: dict):
 
 @event_router.edited_message()
 async def handle_edited(msg: Message, bot: Bot):
-    if msg.chat.type not in ("group", "supergroup", "channel"): return
     if not msg.from_user: return
+    if msg.from_user.is_bot: return
     u = msg.from_user
     cached   = await get_cached_message(msg.chat.id, msg.message_id)
     old_text = cached.get("text") if cached else None
@@ -833,12 +841,14 @@ async def handle_edited(msg: Message, bot: Bot):
     if old_text != new_text:
         def trim(t): return "<i>пусто</i>" if not t else (t[:300] + "…") if len(t) > 300 else t
         notify_text = (
-            f"✏️ <b>Сообщение отредактировано!</b>\n\n"
-            f"👤 Автор: {user_link(u.id, u.first_name, u.username)}\n"
-            f"💬 Чат: <b>{msg.chat.title or msg.chat.id}</b>\n"
-            f"🕒 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
-            f"📝 <b>Было:</b>\n{trim(old_text)}\n\n"
-            f"📝 <b>Стало:</b>\n{trim(new_text)}"
+            f"✏️ <b>Изменённое сообщение</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
+            f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
+            f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
+            f"📝 <b>Было:</b>\n<blockquote>{trim(old_text)}</blockquote>\n\n"
+            f"📝 <b>Стало:</b>\n<blockquote>{trim(new_text)}</blockquote>\n"
+            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
         )
         for admin_id in ADMIN_IDS:
             if await should_notify(admin_id, "notify_edit"):
@@ -849,8 +859,9 @@ async def handle_edited(msg: Message, bot: Bot):
 
 @event_router.message()
 async def cache_incoming(msg: Message, bot: Bot):
-    if msg.chat.type not in ("group", "supergroup", "channel"): return
     if not msg.from_user: return
+    # Игнорируем сообщения самого бота
+    if msg.from_user.is_bot: return
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
     media_type, file_id = extract_media(msg)
@@ -865,15 +876,74 @@ async def cache_incoming(msg: Message, bot: Bot):
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
                          text_content, media_type, file_id)
     if is_self_destruct and media_type and file_id:
-        caption = (f"💣 <b>Исчезающее медиа перехвачено!</b>\n\n"
-                   f"👤 От: {user_link(u.id, u.first_name, u.username)}\n"
-                   f"💬 Чат: <b>{msg.chat.title or msg.chat.id}</b>\n"
-                   f"🕒 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n"
-                   f"Тип: {MEDIA_EMOJI.get(media_type, '📎')} {media_type}")
+        caption = (
+            f"💣 <b>Исчезающее медиа перехвачено!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
+            f"👤 <b>От:</b> {user_link(u.id, u.first_name, u.username)}\n"
+            f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n"
+            f"{MEDIA_EMOJI.get(media_type, '📎')} <b>Тип:</b> {media_type}\n"
+            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+        )
         for admin_id in ADMIN_IDS:
             if await should_notify(admin_id, "notify_self_destruct"):
                 await notify_user(bot, admin_id, text=caption, parse_mode="HTML")
                 await send_media(bot, admin_id, media_type, file_id)
+
+# ══════════════════════════════════════════════
+# BUSINESS API — сообщения через бизнес-аккаунт
+# ══════════════════════════════════════════════
+
+@event_router.business_message()
+async def cache_business_message(msg: Message, bot: Bot):
+    """Кэшируем сообщения из бизнес-подключений"""
+    if not msg.from_user: return
+    if msg.from_user.is_bot: return
+    u = msg.from_user
+    await upsert_user(u.id, u.username, u.first_name)
+    media_type, file_id = extract_media(msg)
+    text_content = msg.text or msg.caption
+    await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
+                         text_content, media_type, file_id)
+
+@event_router.edited_business_message()
+async def handle_edited_business(msg: Message, bot: Bot):
+    """Редактирования в бизнес-чатах"""
+    if not msg.from_user: return
+    if msg.from_user.is_bot: return
+    u = msg.from_user
+    cached   = await get_cached_message(msg.chat.id, msg.message_id)
+    old_text = cached.get("text") if cached else None
+    new_text = msg.text or msg.caption
+    if old_text != new_text:
+        def trim(t): return "<i>пусто</i>" if not t else (t[:300] + "…") if len(t) > 300 else t
+        notify_text = (
+            f"✏️ <b>Изменённое сообщение</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>{datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</b>\n"
+            f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
+            f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
+            f"📝 <b>Было:</b>\n<blockquote>{trim(old_text)}</blockquote>\n\n"
+            f"📝 <b>Стало:</b>\n<blockquote>{trim(new_text)}</blockquote>\n"
+            f"\n━━━━━━━━━━━━━━━━━━━━━\n🤖 @ShadowSMSq_BOT"
+        )
+        for admin_id in ADMIN_IDS:
+            if await should_notify(admin_id, "notify_edit"):
+                await notify_user(bot, admin_id, text=notify_text, parse_mode="HTML")
+    media_type, file_id = extract_media(msg)
+    await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
+                         new_text, media_type, file_id)
+
+@event_router.deleted_business_messages()
+async def handle_deleted_business(event, bot: Bot):
+    """Удалённые сообщения из бизнес-чатов"""
+    chat_id = getattr(getattr(event, "chat", None), "id", None)
+    if not chat_id: return
+    for msg_id in getattr(event, "message_ids", []):
+        cached = await get_cached_message(chat_id, msg_id)
+        if not cached: continue
+        await _notify_deleted(bot, cached)
+        await delete_cached_message(chat_id, msg_id)
 
 # ══════════════════════════════════════════════
 # ЗАПУСК
