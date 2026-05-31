@@ -327,21 +327,21 @@ def adm_back_kb():
 
 async def start_text(uid: int, first_name: str) -> str:
     if is_admin(uid):
-        status = f"{e('👑')} Администратор — безлимитный доступ"
+        status = f"👑 Администратор — безлимитный доступ"
     elif await is_subscribed(uid):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        status = f"{e('✅')} Подписка активна · осталось {days_left} дн."
+        status = f"✅ Подписка активна · осталось {days_left} дн."
     else:
-        status = f"{e('❌')} Подписка не активна"
+        status = f"❌ Подписка не активна"
     return (
-        f"{e('👁')} <b>ShadowWatch</b>\n\n"
+        f"👁 <b>ShadowWatch</b>\n\n"
         f"Привет, {first_name}! 👋\n\n"
         f"<b>Статус:</b> {status}\n\n"
-        f"{e('🗑')} Удалённые сообщения\n"
-        f"{e('✏️')} Редактирования\n"
-        f"{e('💣')} Исчезающие медиа\n\n"
+        f"🗑 Удалённые сообщения\n"
+        f"✏️ Редактирования\n"
+        f"💣 Исчезающие медиа\n\n"
         f"<i>Выбери действие 👇</i>"
     )
 
@@ -377,7 +377,7 @@ async def _send_deleted_notify(bot: Bot, cached: dict):
     sender   = user_link(uid, fname, uname) if uid else fname
 
     caption = (
-        f"{e('🗑')} <b>Удалённое сообщение</b>\n\n"
+        f"🗑 <b>Удалённое сообщение</b>\n\n"
         f"📅 <b>{now_str}</b>\n"
         f"👤 <b>Автор:</b> {sender}\n"
         + (f"\n💬 <b>Текст:</b>\n{trim(text)}\n" if text else "")
@@ -462,7 +462,7 @@ async def on_edit(msg: Message, bot: Bot):
     if old_text != new_text:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
         notify  = (
-            f"{e('✏️')} <b>Изменённое сообщение</b>\n\n"
+            f"✏️ <b>Изменённое сообщение</b>\n\n"
             f"📅 <b>{now_str}</b>\n"
             f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
@@ -503,13 +503,14 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     await upsert_user(uid, bc.user.username, bc.user.first_name)
     if not bc.is_enabled:
         try:
+            await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
             await bot.send_message(uid,
-                f"{e('👁')} <b>ShadowWatch отключён</b>\n\n"
+                f"👁 <b>ShadowWatch отключён</b>\n\n"
                 f"Ты отключил бота от своего аккаунта.\n"
                 f"Чтобы снова включить — добавь бота в Автоматизацию чатов:\n\n"
                 f"<code>{BOT_USERNAME}</code>\n\n"
                 f"🤖 @{BOT_USERNAME}",
-                parse_mode="HTML", reply_markup=reply_kb())
+                parse_mode="HTML")
         except: pass
         return
 
@@ -527,40 +528,40 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if trial_activated:
         text = (
-            f"{e('👁')} <b>ShadowWatch подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}! {e('🎉')}\n\n"
-            f"{e('🎁')} <b>Пробный период активирован — 7 дней бесплатно!</b>\n"
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}! 🎉\n\n"
+            f"🎁 <b>Пробный период активирован — 7 дней бесплатно!</b>\n"
             f"📅 Действует до: <b>{exp_str}</b>\n\n"
-            f"{e('🗑')} Удалённые сообщения\n"
-            f"{e('✏️')} Редактирования\n"
-            f"{e('💣')} Исчезающие медиа\n\n"
+            f"🗑 Удалённые сообщения\n"
+            f"✏️ Редактирования\n"
+            f"💣 Исчезающие медиа\n\n"
             f"<i>Используй меню ниже 👇</i>\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
-            f"{e('👁')} <b>ShadowWatch подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}! {e('✅')}\n\n"
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}! ✅\n\n"
             f"Бот успешно подключён к твоему аккаунту.\n\n"
-            f"{e('🗑')} Удалённые сообщения\n"
-            f"{e('✏️')} Редактирования\n"
-            f"{e('💣')} Исчезающие медиа\n\n"
+            f"🗑 Удалённые сообщения\n"
+            f"✏️ Редактирования\n"
+            f"💣 Исчезающие медиа\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
     else:
         text = (
-            f"{e('👁')} <b>ShadowWatch подключён!</b>\n\n"
+            f"👁 <b>ShadowWatch подключён!</b>\n\n"
             f"Привет, {bc.user.first_name}! 👋\n\n"
             f"Для работы нужна подписка.\n\n"
-            f"{e('💳')} Оформи подписку:\n"
-            f"{e('📅')} 1 месяц · 35 {e('⭐')}\n"
-            f"{e('📦')} 3 месяца · 89 {e('⭐')}\n"
-            f"{e('👑')} 1 год · 299 {e('⭐')}\n\n"
+            f"💳 Оформи подписку:\n"
+            f"📅 1 месяц · 35 ⭐\n"
+            f"📦 3 месяца · 89 ⭐\n"
+            f"👑 1 год · 299 ⭐\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
     try:
-        await bot.send_message(uid, text, parse_mode="HTML", reply_markup=reply_kb())
-        await bot.send_message(uid, "Меню:", reply_markup=main_kb())
+        await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
+        await bot.send_message(uid, text, parse_mode="HTML", reply_markup=main_kb())
     except Exception as ex: logger.warning(f"biz connect notify {uid}: {ex}")
 
     for admin_id in ADMIN_IDS:
@@ -581,9 +582,11 @@ async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
+    # Сначала устанавливаем клавиатуру простым сообщением (без tg-emoji)
+    await msg.answer("👁 ShadowWatch", reply_markup=reply_kb())
+    # Потом красивое сообщение с анимированными эмодзи
     text = await start_text(u.id, u.first_name)
-    await msg.answer(text, reply_markup=reply_kb())
-    await msg.answer("Меню:", reply_markup=main_kb())
+    await msg.answer(text, reply_markup=main_kb())
 
 # Inline-кнопка "Главное меню"
 @user_router.callback_query(F.data == "u:main")
@@ -608,16 +611,16 @@ async def show_plans(event, state: FSMContext = None):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        sub_info = f"\n\n{e('✅')} <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
+        sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     trial_note = "\n<i>Пробный период уже использован</i>" if not trial_ok and not is_admin(uid) else ""
     text = (
-        f"{e('👑')} <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
-        + (f"{e('🎁')} <b>Пробный период</b> · 7 дней бесплатно\n\n" if trial_ok else "")
-        + f"{e('📅')} <b>1 месяц</b> · 35 {e('⭐')}\n"
-        + f"{e('📦')} <b>3 месяца</b> · 89 {e('⭐')}  <i>скидка 15%</i>\n"
-        + f"{e('👑')} <b>1 год</b> · 299 {e('⭐')}  <i>скидка 29%</i>"
+        f"👑 <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
+        + (f"🎁 <b>Пробный период</b> · 7 дней бесплатно\n\n" if trial_ok else "")
+        + f"📅 <b>1 месяц</b> · 35 ⭐\n"
+        + f"📦 <b>3 месяца</b> · 89 ⭐  <i>скидка 15%</i>\n"
+        + f"👑 <b>1 год</b> · 299 ⭐  <i>скидка 29%</i>"
         + trial_note
-        + f"\n\n<i>{e('🔒')} Оплата через Telegram Stars — мгновенно и безопасно</i>"
+        + f"\n\n<i>🔒 Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=plans_kb(trial_ok))
@@ -633,19 +636,19 @@ async def show_sub(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
     if is_admin(uid):
-        text = f"{e('👑')} <b>Администратор</b>\nБезлимитный доступ ко всем функциям"
+        text = f"👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям"
     else:
         sub = await get_subscription(uid)
         if not sub:
-            text = f"{e('❌')} <b>Подписка не активна</b>\n\nОформи подписку чтобы начать использовать ShadowWatch."
+            text = f"❌ <b>Подписка не активна</b>\n\nОформи подписку чтобы начать использовать ShadowWatch."
         else:
             exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
             now = datetime.now()
             if exp > now:
                 days_left = (exp - now).days
                 text = (
-                    f"{e('✅')} <b>Подписка активна</b>\n\n"
-                    f"{e('📅')} Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
+                    f"✅ <b>Подписка активна</b>\n\n"
+                    f"📅 Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
                     f"⏳ Осталось: <b>{days_left} дн.</b>"
                 )
             else:
@@ -702,7 +705,7 @@ async def cb_toggle(call: CallbackQuery):
 # ── Помощь ──
 
 HELP_TEXT = (
-    f"{e('👁')} <b>Как подключить ShadowWatch</b>\n\n"
+    f"👁 <b>Как подключить ShadowWatch</b>\n\n"
     f"<b>Шаг 1.</b> Открой настройки профиля:\n"
     f"📱 <b>iOS:</b> Профиль → Изменить профиль\n"
     f"📱 <b>Android:</b> Настройки → Аккаунт\n\n"
@@ -710,11 +713,11 @@ HELP_TEXT = (
     f"<b>Шаг 3.</b> Нажми <b>«Добавить бота»</b> и введи:\n"
     f"<code>{BOT_USERNAME}</code>\n"
     f"<i>(нажми чтобы скопировать)</i>\n\n"
-    f"<b>Шаг 4.</b> Нажми <b>Добавить</b> — готово! {e('✅')}\n\n"
+    f"<b>Шаг 4.</b> Нажми <b>Добавить</b> — готово! ✅\n\n"
     f"<b>Что отслеживается:</b>\n"
-    f"{e('🗑')} Удалённые сообщения — пришлю копию\n"
-    f"{e('✏️')} Редактирования — было и стало\n"
-    f"{e('💣')} Исчезающие медиа — перехват\n\n"
+    f"🗑 Удалённые сообщения — пришлю копию\n"
+    f"✏️ Редактирования — было и стало\n"
+    f"💣 Исчезающие медиа — перехват\n\n"
     f"<i>⚠️ Требуется Telegram Premium на твоём аккаунте</i>"
 )
 
@@ -747,33 +750,33 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
         expires = await grant_subscription(uid, plan["days"], 0)
         exp_dt  = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
         await safe_edit(call,
-            f"{e('🎁')} <b>Пробный период активирован!</b>\n\n"
+            f"🎁 <b>Пробный период активирован!</b>\n\n"
             f"⏳ Срок: <b>7 дней</b>\n"
-            f"{e('📅')} До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            f"{e('✅')} Все функции доступны!\n\n"
-            f"<i>{e('👁')} ShadowWatch уже следит за твоими чатами</i>",
+            f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+            f"✅ Все функции доступны!\n\n"
+            f"<i>👁 ShadowWatch уже следит за твоими чатами</i>",
             reply_markup=back_kb())
         await call.answer("✅ Активировано!")
         await notify_admins(bot,
-            f"{e('🎁')} Новый пробный период\n"
+            f"🎁 Новый пробный период\n"
             f"👤 {user_link(uid, call.from_user.first_name, call.from_user.username)}")
         return
 
-    plan_icons = {"month": e("📅"), "three": e("📦"), "year": e("👑")}
-    plan_discounts = {"month": "", "three": f"  {e('🔥')} скидка 15%", "year": f"  {e('🔥')} скидка 29%"}
+    plan_icons = {"month": "📅", "three": "📦", "year": "👑"}
+    plan_discounts = {"month": "", "three": f"  🔥 скидка 15%", "year": f"  🔥 скидка 29%"}
 
     try: await call.message.delete()
     except: pass
 
     await bot.send_message(uid,
-        f"{e('⭐')} <b>Оформление подписки</b>\n\n"
+        f"⭐ <b>Оформление подписки</b>\n\n"
         f"{plan_icons.get(plan_key,'')} <b>Тариф:</b> {plan['label']}{plan_discounts.get(plan_key,'')}\n"
-        f"{e('💳')} <b>Стоимость:</b> {plan['stars']} {e('⭐')} Stars\n\n"
+        f"💳 <b>Стоимость:</b> {plan['stars']} ⭐ Stars\n\n"
         f"<b>Что входит:</b>\n"
-        f"{e('🗑')} Удалённые сообщения\n"
-        f"{e('✏️')} Редактирования\n"
-        f"{e('💣')} Исчезающие медиа\n\n"
-        f"{e('🔒')} Оплата защищена Telegram",
+        f"🗑 Удалённые сообщения\n"
+        f"✏️ Редактирования\n"
+        f"💣 Исчезающие медиа\n\n"
+        f"🔒 Оплата защищена Telegram",
         parse_mode="HTML"
     )
     await bot.send_invoice(
@@ -807,20 +810,20 @@ async def on_payment(msg: Message, bot: Bot):
     exp_dt    = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
     stars     = msg.successful_payment.total_amount
     await msg.answer(
-        f"{e('🎉')} <b>Оплата прошла успешно!</b>\n\n"
-        f"{e('👑')} <b>Тариф:</b> {plan['label']}\n"
-        f"{e('⭐')} <b>Списано:</b> {stars} Stars\n"
-        f"{e('📅')} <b>Подписка до:</b> {exp_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"{e('✅')} Все функции активированы!\n"
-        f"{e('🗑')} · {e('✏️')} · {e('💣')}\n\n"
-        f"<i>{e('👁')} ShadowWatch уже следит за твоими чатами</i>",
+        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
+        f"👑 <b>Тариф:</b> {plan['label']}\n"
+        f"⭐ <b>Списано:</b> {stars} Stars\n"
+        f"📅 <b>Подписка до:</b> {exp_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"✅ Все функции активированы!\n"
+        f"🗑 · ✏️ · 💣\n\n"
+        f"<i>👁 ShadowWatch уже следит за твоими чатами</i>",
         reply_markup=back_kb()
     )
     await notify_admins(bot,
-        f"{e('💳')} <b>Новая оплата!</b>\n\n"
+        f"💳 <b>Новая оплата!</b>\n\n"
         f"👤 {user_link(uid, msg.from_user.first_name, msg.from_user.username)}\n"
         f"📦 Тариф: {plan['label']}\n"
-        f"{e('⭐')} Stars: {stars}\n"
+        f"⭐ Stars: {stars}\n"
         f"📅 До: {exp_dt.strftime('%d.%m.%Y %H:%M')}")
 
 # ── Команды ──
@@ -841,13 +844,13 @@ async def cmd_sub(msg: Message):
 async def cmd_admin(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id): return await msg.answer("⛔ Нет доступа.")
     await state.clear()
-    await msg.answer(f"{e('👁')} <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
+    await msg.answer(f"👁 <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
                      reply_markup=admin_kb())
 
 @admin_router.callback_query(F.data == "adm:back")
 async def adm_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await safe_edit(call, f"{e('👁')} <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
+    await safe_edit(call, f"👁 <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
                     reply_markup=admin_kb())
     await call.answer()
 
@@ -861,7 +864,7 @@ async def adm_stats(call: CallbackQuery):
     await safe_edit(call,
         f"📊 <b>Статистика ShadowWatch</b>\n\n"
         f"👥 Всего пользователей: <b>{len(users)}</b>\n"
-        f"{e('⭐')} Активных подписок: <b>{len(active)}</b>\n"
+        f"⭐ Активных подписок: <b>{len(active)}</b>\n"
         f"📋 Всего выдано: <b>{len(subs)}</b>",
         reply_markup=adm_back_kb())
     await call.answer()
@@ -885,7 +888,7 @@ async def adm_subs(call: CallbackQuery):
     now  = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
     if not active: return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
-    lines = [f"{e('⭐')} <b>Активные подписки</b>:\n"]
+    lines = [f"⭐ <b>Активные подписки</b>:\n"]
     for s in active:
         exp = datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - now).days
@@ -939,7 +942,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
     await call.answer("✅ Готово!")
     try:
         await call.bot.send_message(uid,
-            f"{e('🎉')} <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
+            f"🎉 <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
             f"⏳ Срок: <b>{days} дн.</b>\n"
             f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
             f"<i>Используй /start 👁</i>")
@@ -962,7 +965,7 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
         reply_markup=adm_back_kb())
     try:
         await msg.bot.send_message(uid,
-            f"{e('🎉')} <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
+            f"🎉 <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
             f"⏳ Срок: <b>{days} дн.</b>\n📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>")
     except: pass
 
