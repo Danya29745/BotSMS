@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════
 
 BOT_TOKEN   = os.getenv("BOT_TOKEN", "")
-DB_PATH     = os.getenv("DB_PATH", "shadowwatch.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH     = os.getenv("DB_PATH", os.path.join(BASE_DIR, "shadowwatch.db"))
 ADMIN_IDS   = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
 BOT_USERNAME = "ShadowSMSq_BOT"
 MSG_CACHE_TTL = int(os.getenv("MESSAGE_CACHE_TTL", "86400"))
@@ -69,7 +70,6 @@ PLANS = {
     "year":  {"label": "1 год",          "days": 365, "stars": 299, "desc": "1 год"},
 }
 
-# Словарь: business_connection_id -> owner user_id (в памяти)
 _biz_owners: dict = {}
 
 # ══════════════════════════════════════════════
@@ -108,6 +108,7 @@ def _init_db_sync():
         notify_edit INTEGER DEFAULT 1,
         notify_self_destruct INTEGER DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS business_connections (connection_id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL);
     """)
     c.commit(); c.close()
 
@@ -229,6 +230,17 @@ async def should_notify(uid, setting) -> bool:
     if not await is_subscribed(uid): return False
     s = await get_user_settings(uid)
     return bool(s.get(setting, 1))
+
+
+async def save_business_owner(connection_id, owner_id):
+    def _f():
+        c=_conn(); c.execute("INSERT OR REPLACE INTO business_connections (connection_id,owner_id) VALUES (?,?)",(connection_id,owner_id)); c.commit(); c.close()
+    await _run(_f)
+
+async def get_business_owner(connection_id):
+    def _f():
+        c=_conn(); row=c.execute("SELECT owner_id FROM business_connections WHERE connection_id=?",(connection_id,)).fetchone(); c.close(); return row[0] if row else None
+    return await _run(_f)
 
 # ══════════════════════════════════════════════
 # ХЕЛПЕРЫ
@@ -360,14 +372,6 @@ class DeleteMiddleware(BaseMiddleware):
         if event.message_reaction or not hasattr(event, "update_id"):
             return await handler(event, data)
         upd = event
-        # Удаление в бизнес-чатах
-        if upd.deleted_business_messages:
-            d = upd.deleted_business_messages
-            for mid in d.message_ids:
-                cached = await get_cached_message(d.chat.id, mid)
-                if not cached: continue
-                await _send_deleted_notify(bot, cached)
-                await delete_cached_message(d.chat.id, mid)
         return await handler(event, data)
 
 async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
@@ -484,13 +488,13 @@ async def on_biz_message(msg: Message, bot: Bot):
     bc_id = getattr(msg, "business_connection_id", None)
     # owner хранится в самом update через business_connection
     # Берём из кэша подключений если есть, иначе None
-    owner_id = _biz_owners.get(bc_id) if bc_id else None
+    owner_id = await get_business_owner(bc_id) if bc_id else None
     await _do_cache(msg, owner_id=owner_id)
 
 @event_router.edited_business_message()
 async def on_biz_edit(msg: Message, bot: Bot):
     bc_id = getattr(msg, "business_connection_id", None)
-    owner_id = _biz_owners.get(bc_id) if bc_id else None
+    owner_id = await get_business_owner(bc_id) if bc_id else None
     await on_edit(msg, bot, owner_id=owner_id)
 
 @event_router.deleted_business_messages()
@@ -498,7 +502,7 @@ async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
     if not chat_id: return
     bc_id = getattr(event, "business_connection_id", None)
-    owner_id = _biz_owners.get(bc_id) if bc_id else None
+    owner_id = await get_business_owner(bc_id) if bc_id else None
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         if not cached: continue
@@ -511,7 +515,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     await upsert_user(uid, bc.user.username, bc.user.first_name)
     # Сохраняем связь connection_id -> owner_id
     if hasattr(bc, "id") and bc.id:
-        _biz_owners[bc.id] = uid
+        await save_business_owner(bc.id, uid)
     if not bc.is_enabled:
         try:
             await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
