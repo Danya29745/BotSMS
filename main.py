@@ -158,10 +158,36 @@ async def restore_biz_connections():
     logger.info(f"Восстановлено {len(pairs)} business-подключений из БД")
 
 def get_biz_owner(bc_id: str | None) -> int | None:
-    """Получить owner_id по business_connection_id"""
+    """Получить owner_id по business_connection_id (только из кэша памяти)"""
     if not bc_id:
         return None
     return _biz_owners.get(bc_id)
+
+async def resolve_biz_owner(bc_id: str | None, bot: Bot) -> int | None:
+    """
+    Получить owner_id: сначала из кэша памяти,
+    если нет — запросить у Telegram API и сохранить в БД+память.
+    Это нужно после перезапуска бота, когда _biz_owners пуст,
+    а пользователи ещё не переподключились.
+    """
+    if not bc_id:
+        return None
+    # 1. Проверяем кэш памяти
+    owner_id = _biz_owners.get(bc_id)
+    if owner_id:
+        return owner_id
+    # 2. Спрашиваем Telegram API
+    try:
+        bc = await bot.get_business_connection(bc_id)
+        if bc and bc.user:
+            owner_id = bc.user.id
+            await upsert_user(owner_id, bc.user.username, bc.user.first_name)
+            await save_biz_connection(bc_id, owner_id)
+            logger.info(f"resolve_biz_owner: восстановлено {bc_id} -> {owner_id} через API")
+            return owner_id
+    except Exception as ex:
+        logger.warning(f"resolve_biz_owner: не удалось получить connection {bc_id}: {ex}")
+    return None
 
 # ── Остальные функции БД ──
 
@@ -519,26 +545,28 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
 @event_router.business_message()
 async def on_biz_message(msg: Message, bot: Bot):
     bc_id    = getattr(msg, "business_connection_id", None)
-    owner_id = get_biz_owner(bc_id)
+    # resolve_biz_owner — обращается к Telegram API если нет в кэше (после перезапуска)
+    owner_id = await resolve_biz_owner(bc_id, bot)
     await _do_cache(msg, owner_id=owner_id)
 
 @event_router.edited_business_message()
 async def on_biz_edit(msg: Message, bot: Bot):
     bc_id    = getattr(msg, "business_connection_id", None)
-    owner_id = get_biz_owner(bc_id)
+    owner_id = await resolve_biz_owner(bc_id, bot)
     await on_edit(msg, bot, owner_id=owner_id)
 
-# ИСПРАВЛЕНИЕ #2: Обработка удалений ТОЛЬКО ЗДЕСЬ (не в middleware)
+# Обработка удалений ТОЛЬКО ЗДЕСЬ (не в middleware)
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
     if not chat_id: return
     bc_id    = getattr(event, "business_connection_id", None)
-    owner_id = get_biz_owner(bc_id)
+    # resolve_biz_owner автоматически восстанавливает связь через API если её нет в кэше
+    owner_id = await resolve_biz_owner(bc_id, bot)
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         if not cached: continue
-        # owner_id из _biz_owners (из БД) приоритетнее кэша сообщения
+        # owner_id из resolve (из БД/API) приоритетнее owner_id из кэша сообщения
         effective_owner = owner_id or cached.get("owner_id")
         await _send_deleted_notify(bot, cached, owner_id=effective_owner)
         await delete_cached_message(chat_id, mid)
