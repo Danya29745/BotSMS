@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-👁 ShadowWatch Bot — чистая версия
+👁 ShadowWatch Bot — исправленная версия
 """
 
 import asyncio, logging, os, sqlite3
@@ -32,10 +32,9 @@ logger = logging.getLogger(__name__)
 # КОНФИГ
 # ══════════════════════════════════════════════
 
-BOT_TOKEN   = os.getenv("BOT_TOKEN", "")
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH     = os.getenv("DB_PATH", os.path.join(BASE_DIR, "shadowwatch.db"))
-ADMIN_IDS   = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
+BOT_TOKEN    = os.getenv("BOT_TOKEN", "")
+DB_PATH      = os.getenv("DB_PATH", "shadowwatch.db")
+ADMIN_IDS    = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
 BOT_USERNAME = "ShadowSMSq_BOT"
 MSG_CACHE_TTL = int(os.getenv("MESSAGE_CACHE_TTL", "86400"))
 
@@ -69,8 +68,6 @@ PLANS = {
     "three": {"label": "3 месяца",       "days": 90,  "stars": 89,  "desc": "3 месяца"},
     "year":  {"label": "1 год",          "days": 365, "stars": 299, "desc": "1 год"},
 }
-
-_biz_owners: dict = {}
 
 # ══════════════════════════════════════════════
 # БАЗА ДАННЫХ
@@ -108,7 +105,11 @@ def _init_db_sync():
         notify_edit INTEGER DEFAULT 1,
         notify_self_destruct INTEGER DEFAULT 1
     );
-    CREATE TABLE IF NOT EXISTS business_connections (connection_id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS business_connections (
+        connection_id TEXT PRIMARY KEY,
+        owner_id INTEGER NOT NULL,
+        connected_at TEXT DEFAULT (datetime('now'))
+    );
     """)
     c.commit(); c.close()
 
@@ -117,6 +118,52 @@ async def init_db():
 
 def _run(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
+
+# ── ИСПРАВЛЕНИЕ #1: biz_owners теперь хранится в БД и кэшируется в памяти ──
+
+# Кэш в памяти (восстанавливается из БД при старте)
+_biz_owners: dict = {}
+
+async def save_biz_connection(connection_id: str, owner_id: int):
+    """Сохранить business_connection_id -> owner_id в БД и в кэш памяти"""
+    _biz_owners[connection_id] = owner_id
+    def _f():
+        c = _conn()
+        c.execute("""INSERT INTO business_connections (connection_id, owner_id)
+            VALUES (?, ?)
+            ON CONFLICT(connection_id) DO UPDATE SET owner_id=excluded.owner_id""",
+            (connection_id, owner_id))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def remove_biz_connection(connection_id: str):
+    """Удалить business подключение (при отключении)"""
+    _biz_owners.pop(connection_id, None)
+    def _f():
+        c = _conn()
+        c.execute("DELETE FROM business_connections WHERE connection_id=?", (connection_id,))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def restore_biz_connections():
+    """Загрузить все сохранённые подключения из БД в память при старте бота"""
+    def _f():
+        c = _conn()
+        rows = c.execute("SELECT connection_id, owner_id FROM business_connections").fetchall()
+        c.close()
+        return [(r["connection_id"], r["owner_id"]) for r in rows]
+    pairs = await _run(_f)
+    for conn_id, owner_id in pairs:
+        _biz_owners[conn_id] = owner_id
+    logger.info(f"Восстановлено {len(pairs)} business-подключений из БД")
+
+def get_biz_owner(bc_id: str | None) -> int | None:
+    """Получить owner_id по business_connection_id"""
+    if not bc_id:
+        return None
+    return _biz_owners.get(bc_id)
+
+# ── Остальные функции БД ──
 
 async def upsert_user(uid, username=None, first_name=None):
     def _f():
@@ -230,17 +277,6 @@ async def should_notify(uid, setting) -> bool:
     if not await is_subscribed(uid): return False
     s = await get_user_settings(uid)
     return bool(s.get(setting, 1))
-
-
-async def save_business_owner(connection_id, owner_id):
-    def _f():
-        c=_conn(); c.execute("INSERT OR REPLACE INTO business_connections (connection_id,owner_id) VALUES (?,?)",(connection_id,owner_id)); c.commit(); c.close()
-    await _run(_f)
-
-async def get_business_owner(connection_id):
-    def _f():
-        c=_conn(); row=c.execute("SELECT owner_id FROM business_connections WHERE connection_id=?",(connection_id,)).fetchone(); c.close(); return row[0] if row else None
-    return await _run(_f)
 
 # ══════════════════════════════════════════════
 # ХЕЛПЕРЫ
@@ -362,32 +398,32 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 # ══════════════════════════════════════════════
-# MIDDLEWARE — перехват удалённых сообщений
+# ИСПРАВЛЕНИЕ #2: Убираем DeleteMiddleware полностью
+# (дублировала обработку deleted_business_messages с роутером)
+# Middleware теперь ничего не делает с удалёнными — только пропускает дальше
 # ══════════════════════════════════════════════
 
-class DeleteMiddleware(BaseMiddleware):
-    async def __call__(self, handler: Callable[[Update, Dict[str, Any]], Awaitable[Any]],
-                       event: Update, data: Dict[str, Any]) -> Any:
-        bot: Bot = data["bot"]
-        if event.message_reaction or not hasattr(event, "update_id"):
-            return await handler(event, data)
-        upd = event
-        return await handler(event, data)
+# (DeleteMiddleware удалена — была причиной двойных уведомлений)
+
+# ══════════════════════════════════════════════
+# ОТПРАВКА УВЕДОМЛЕНИЙ
+# ══════════════════════════════════════════════
 
 async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     """Отправляет уведомление об удалённом сообщении владельцу аккаунта"""
-    author_uid   = cached.get("user_id")
-    fname        = cached.get("first_name") or "Неизвестно"
-    uname        = cached.get("username")
-    text         = cached.get("text")
-    mtype        = cached.get("media_type")
-    fid          = cached.get("file_id")
-    # owner_id — кому шлём уведомление (владелец аккаунта)
-    notify_to    = owner_id or cached.get("owner_id") or None
+    author_uid = cached.get("user_id")
+    fname      = cached.get("first_name") or "Неизвестно"
+    uname      = cached.get("username")
+    text       = cached.get("text")
+    mtype      = cached.get("media_type")
+    fid        = cached.get("file_id")
+    # owner_id — кому шлём уведомление
+    notify_to  = owner_id or cached.get("owner_id") or None
     if not notify_to:
-        return  # не знаем кому слать
-    now_str      = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
-    sender       = user_link(author_uid, fname, uname) if author_uid else fname
+        logger.warning(f"_send_deleted_notify: owner_id не найден для cached={cached}")
+        return
+    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
     caption = (
         f"🗑 <b>Удалённое сообщение</b>\n\n"
@@ -459,7 +495,6 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     cached   = await get_cached_message(msg.chat.id, msg.message_id)
     old_text = cached.get("text") if cached else None
     new_text = msg.text or msg.caption
-    # Кому слать: owner_id (для business), иначе берём из кэша
     notify_to = owner_id or (cached.get("owner_id") if cached else None)
     if old_text != new_text and notify_to:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
@@ -479,43 +514,49 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
                         new_text, mtype, fid, owner_id=notify_to)
 
-# Business API
+# ── Business API ──
+
 @event_router.business_message()
 async def on_biz_message(msg: Message, bot: Bot):
-    # owner_id — владелец бизнес-аккаунта к которому подключён бот
-    owner_id = getattr(msg, "via_business_bot", None)
-    # aiogram передаёт business_connection_id, используем его для поиска владельца
-    bc_id = getattr(msg, "business_connection_id", None)
-    # owner хранится в самом update через business_connection
-    # Берём из кэша подключений если есть, иначе None
-    owner_id = await get_business_owner(bc_id) if bc_id else None
+    bc_id    = getattr(msg, "business_connection_id", None)
+    owner_id = get_biz_owner(bc_id)
     await _do_cache(msg, owner_id=owner_id)
 
 @event_router.edited_business_message()
 async def on_biz_edit(msg: Message, bot: Bot):
-    bc_id = getattr(msg, "business_connection_id", None)
-    owner_id = await get_business_owner(bc_id) if bc_id else None
+    bc_id    = getattr(msg, "business_connection_id", None)
+    owner_id = get_biz_owner(bc_id)
     await on_edit(msg, bot, owner_id=owner_id)
 
+# ИСПРАВЛЕНИЕ #2: Обработка удалений ТОЛЬКО ЗДЕСЬ (не в middleware)
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
     if not chat_id: return
-    bc_id = getattr(event, "business_connection_id", None)
-    owner_id = await get_business_owner(bc_id) if bc_id else None
+    bc_id    = getattr(event, "business_connection_id", None)
+    owner_id = get_biz_owner(bc_id)
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         if not cached: continue
-        await _send_deleted_notify(bot, cached, owner_id=owner_id)
+        # owner_id из _biz_owners (из БД) приоритетнее кэша сообщения
+        effective_owner = owner_id or cached.get("owner_id")
+        await _send_deleted_notify(bot, cached, owner_id=effective_owner)
         await delete_cached_message(chat_id, mid)
 
 @event_router.business_connection()
 async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     uid = bc.user.id
     await upsert_user(uid, bc.user.username, bc.user.first_name)
-    # Сохраняем связь connection_id -> owner_id
+
+    # ИСПРАВЛЕНИЕ #1: Сохраняем подключение в БД (переживает перезапуск)
     if hasattr(bc, "id") and bc.id:
-        await save_business_owner(bc.id, uid)
+        if bc.is_enabled:
+            await save_biz_connection(bc.id, uid)
+            logger.info(f"Business подключение сохранено: {bc.id} -> {uid}")
+        else:
+            await remove_biz_connection(bc.id)
+            logger.info(f"Business подключение удалено: {bc.id}")
+
     if not bc.is_enabled:
         try:
             await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
@@ -598,11 +639,9 @@ async def cmd_start(msg: Message, state: FSMContext):
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
     text = await start_text(u.id, u.first_name)
-    # reply_kb() отправляем отдельно без tg-emoji текста
     await msg.answer("👁", reply_markup=reply_kb())
     await msg.answer(text, reply_markup=main_kb())
 
-# Inline-кнопка "Главное меню"
 @user_router.callback_query(F.data == "u:main")
 async def cb_main(call: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -717,6 +756,7 @@ async def cb_toggle(call: CallbackQuery):
     await show_settings(call)
 
 # ── Помощь ──
+# ИСПРАВЛЕНИЕ #3: Убрано упоминание о платной Telegram Business подписке
 
 HELP_TEXT = (
     f"👁 <b>Как подключить ShadowWatch</b>\n\n"
@@ -732,7 +772,7 @@ HELP_TEXT = (
     f"🗑 Удалённые сообщения — пришлю копию\n"
     f"✏️ Редактирования — было и стало\n"
     f"💣 Исчезающие медиа — перехват\n\n"
-    f"<i>ℹ️ Для подключения нужен раздел Автоматизация чатов в настройках профиля</i>"
+    f"<i>ℹ️ Автоматизация чатов доступна всем пользователям Telegram — подписка Telegram Premium не требуется</i>"
 )
 
 @user_router.callback_query(F.data == "u:help")
@@ -875,11 +915,13 @@ async def adm_stats(call: CallbackQuery):
     subs   = await get_all_subscriptions()
     now    = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
+    biz_count = len(_biz_owners)
     await safe_edit(call,
         f"📊 <b>Статистика ShadowWatch</b>\n\n"
         f"👥 Всего пользователей: <b>{len(users)}</b>\n"
         f"⭐ Активных подписок: <b>{len(active)}</b>\n"
-        f"📋 Всего выдано: <b>{len(subs)}</b>",
+        f"📋 Всего выдано: <b>{len(subs)}</b>\n"
+        f"🔗 Business подключений: <b>{biz_count}</b>",
         reply_markup=adm_back_kb())
     await call.answer()
 
@@ -1006,9 +1048,11 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
 async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp  = Dispatcher()
-    dp.update.middleware(DeleteMiddleware())
+    # ИСПРАВЛЕНИЕ #2: DeleteMiddleware убрана — не дублируем обработку удалений
     dp.include_routers(admin_router, user_router, event_router, payment_router)
     await init_db()
+    # ИСПРАВЛЕНИЕ #1: Восстанавливаем business-подключения из БД при каждом старте
+    await restore_biz_connections()
     logger.info("ShadowWatch запущен")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types() + [
         "business_connection", "business_message",
