@@ -294,11 +294,11 @@ def back_kb():
 def plans_kb(trial_ok: bool):
     rows = []
     if trial_ok:
-        rows.append([InlineKeyboardButton(text=f"{e('🎁')} Пробный период · 7 дней БЕСПЛАТНО", callback_data="plan:trial")])
-    rows.append([InlineKeyboardButton(text=f"{e('📅')} 1 месяц · 35 {e('⭐')}",              callback_data="plan:month")])
-    rows.append([InlineKeyboardButton(text=f"{e('📦')} 3 месяца · 89 {e('⭐')}  −15%",       callback_data="plan:three")])
-    rows.append([InlineKeyboardButton(text=f"{e('👑')} 1 год · 299 {e('⭐')}  −29%",         callback_data="plan:year")])
-    rows.append([InlineKeyboardButton(text="◀️ Назад",                                        callback_data="u:main")])
+        rows.append([InlineKeyboardButton(text="🎁 Пробный период · 7 дней БЕСПЛАТНО", callback_data="plan:trial")])
+    rows.append([InlineKeyboardButton(text="📅 1 месяц · 35 ⭐",           callback_data="plan:month")])
+    rows.append([InlineKeyboardButton(text="📦 3 месяца · 89 ⭐  −15%",    callback_data="plan:three")])
+    rows.append([InlineKeyboardButton(text="👑 1 год · 299 ⭐  −29%",      callback_data="plan:year")])
+    rows.append([InlineKeyboardButton(text="◀️ Назад",                     callback_data="u:main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 def admin_kb():
@@ -649,7 +649,7 @@ async def show_sub(event, state: FSMContext = None):
                     f"Оформи новую подписку для продолжения."
                 )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{e('💳')} Купить / Продлить", callback_data="u:plans")],
+        [InlineKeyboardButton(text="💳 Купить / Продлить", callback_data="u:plans")],
         [InlineKeyboardButton(text="◀️ Главное меню", callback_data="u:main")],
     ])
     if is_call:
