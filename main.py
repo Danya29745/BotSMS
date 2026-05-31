@@ -1,4 +1,3 @@
-cat > /home/claude/BOTIK/main.py << 'ENDOFFILE'
 #!/usr/bin/env python3
 """
 👁 ShadowSMSq Bot
@@ -1269,4 +1268,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-ENDOFFILE
