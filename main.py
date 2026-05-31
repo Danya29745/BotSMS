@@ -7,6 +7,12 @@ import asyncio, logging, os, sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
