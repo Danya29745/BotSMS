@@ -69,6 +69,9 @@ PLANS = {
     "year":  {"label": "1 год",          "days": 365, "stars": 299, "desc": "1 год"},
 }
 
+# Словарь: business_connection_id -> owner user_id (в памяти)
+_biz_owners: dict = {}
+
 # ══════════════════════════════════════════════
 # БАЗА ДАННЫХ
 # ══════════════════════════════════════════════
@@ -93,6 +96,7 @@ def _init_db_sync():
     CREATE TABLE IF NOT EXISTS message_cache (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         chat_id INTEGER NOT NULL, message_id INTEGER NOT NULL,
+        owner_id INTEGER,
         user_id INTEGER, username TEXT, first_name TEXT,
         text TEXT, media_type TEXT, file_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
@@ -178,13 +182,13 @@ async def mark_trial_used(uid):
     await _run(_f)
 
 async def cache_message(chat_id, message_id, user_id, username, first_name,
-                        text=None, media_type=None, file_id=None):
+                        text=None, media_type=None, file_id=None, owner_id=None):
     def _f():
         c = _conn()
         c.execute("""INSERT OR REPLACE INTO message_cache
-            (chat_id,message_id,user_id,username,first_name,text,media_type,file_id)
-            VALUES (?,?,?,?,?,?,?,?)""",
-            (chat_id,message_id,user_id,username,first_name,text,media_type,file_id))
+            (chat_id,message_id,owner_id,user_id,username,first_name,text,media_type,file_id)
+            VALUES (?,?,?,?,?,?,?,?,?)""",
+            (chat_id,message_id,owner_id,user_id,username,first_name,text,media_type,file_id))
         c.commit(); c.close()
     await _run(_f)
 
@@ -366,15 +370,20 @@ class DeleteMiddleware(BaseMiddleware):
                 await delete_cached_message(d.chat.id, mid)
         return await handler(event, data)
 
-async def _send_deleted_notify(bot: Bot, cached: dict):
-    uid      = cached.get("user_id")
-    fname    = cached.get("first_name") or "Неизвестно"
-    uname    = cached.get("username")
-    text     = cached.get("text")
-    mtype    = cached.get("media_type")
-    fid      = cached.get("file_id")
-    now_str  = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
-    sender   = user_link(uid, fname, uname) if uid else fname
+async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
+    """Отправляет уведомление об удалённом сообщении владельцу аккаунта"""
+    author_uid   = cached.get("user_id")
+    fname        = cached.get("first_name") or "Неизвестно"
+    uname        = cached.get("username")
+    text         = cached.get("text")
+    mtype        = cached.get("media_type")
+    fid          = cached.get("file_id")
+    # owner_id — кому шлём уведомление (владелец аккаунта)
+    notify_to    = owner_id or cached.get("owner_id") or None
+    if not notify_to:
+        return  # не знаем кому слать
+    now_str      = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    sender       = user_link(author_uid, fname, uname) if author_uid else fname
 
     caption = (
         f"🗑 <b>Удалённое сообщение</b>\n\n"
@@ -385,30 +394,29 @@ async def _send_deleted_notify(bot: Bot, cached: dict):
         + f"\n🤖 @{BOT_USERNAME}"
     )
 
-    for admin_id in ADMIN_IDS:
-        if not await should_notify(admin_id, "notify_delete"): continue
-        try:
-            if fid and mtype:
-                send = {
-                    "фото":           bot.send_photo,
-                    "видео":          bot.send_video,
-                    "видеосообщение": bot.send_video_note,
-                    "голосовое":      bot.send_voice,
-                    "аудио":          bot.send_audio,
-                    "документ":       bot.send_document,
-                }.get(mtype)
-                if send:
-                    if mtype == "видеосообщение":
-                        await send(admin_id, fid)
-                        await bot.send_message(admin_id, caption, parse_mode="HTML")
-                    else:
-                        await send(admin_id, fid, caption=caption, parse_mode="HTML")
+    if not await should_notify(notify_to, "notify_delete"): return
+    try:
+        if fid and mtype:
+            send = {
+                "фото":           bot.send_photo,
+                "видео":          bot.send_video,
+                "видеосообщение": bot.send_video_note,
+                "голосовое":      bot.send_voice,
+                "аудио":          bot.send_audio,
+                "документ":       bot.send_document,
+            }.get(mtype)
+            if send:
+                if mtype == "видеосообщение":
+                    await send(notify_to, fid)
+                    await bot.send_message(notify_to, caption, parse_mode="HTML")
                 else:
-                    await bot.send_message(admin_id, caption, parse_mode="HTML")
+                    await send(notify_to, fid, caption=caption, parse_mode="HTML")
             else:
-                await bot.send_message(admin_id, caption, parse_mode="HTML")
-        except Exception as ex:
-            logger.warning(f"deleted notify {admin_id}: {ex}")
+                await bot.send_message(notify_to, caption, parse_mode="HTML")
+        else:
+            await bot.send_message(notify_to, caption, parse_mode="HTML")
+    except Exception as ex:
+        logger.warning(f"deleted notify {notify_to}: {ex}")
 
 # ══════════════════════════════════════════════
 # РОУТЕРЫ
@@ -428,38 +436,28 @@ class AdminStates(StatesGroup):
 # СОБЫТИЯ — кэширование и отслеживание
 # ══════════════════════════════════════════════
 
-async def _do_cache(msg: Message):
+async def _do_cache(msg: Message, owner_id: int = None):
     if not msg.from_user or msg.from_user.is_bot: return
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
     mtype, fid = extract_media(msg)
-    # Исчезающие медиа
-    is_self_destruct = getattr(msg, "has_protected_content", False) or (
-        hasattr(msg, "photo") and msg.photo and getattr(msg, "has_media_spoiler", False)
-    )
-    # view_once через protect_content
-    if not is_self_destruct:
-        for attr in ("photo","video","video_note","voice"):
-            obj = getattr(msg, attr, None)
-            if obj:
-                if isinstance(obj, list): obj = obj[-1]
-                if getattr(obj, "file_unique_id", "").startswith("AQAA") or getattr(obj, "duration", None) == 0:
-                    pass
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
-                        msg.text or msg.caption, mtype, fid)
+                        msg.text or msg.caption, mtype, fid, owner_id=owner_id)
 
 @event_router.message()
 async def on_message(msg: Message, bot: Bot):
     await _do_cache(msg)
 
 @event_router.edited_message()
-async def on_edit(msg: Message, bot: Bot):
+async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     if not msg.from_user or msg.from_user.is_bot: return
     u = msg.from_user
     cached   = await get_cached_message(msg.chat.id, msg.message_id)
     old_text = cached.get("text") if cached else None
     new_text = msg.text or msg.caption
-    if old_text != new_text:
+    # Кому слать: owner_id (для business), иначе берём из кэша
+    notify_to = owner_id or (cached.get("owner_id") if cached else None)
+    if old_text != new_text and notify_to:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
         notify  = (
             f"✏️ <b>Изменённое сообщение</b>\n\n"
@@ -470,37 +468,50 @@ async def on_edit(msg: Message, bot: Bot):
             f"📝 <b>Стало:</b>\n{trim(new_text)}\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
-        for admin_id in ADMIN_IDS:
-            if await should_notify(admin_id, "notify_edit"):
-                try: await bot.send_message(admin_id, notify, parse_mode="HTML")
-                except Exception as ex: logger.warning(f"edit notify {admin_id}: {ex}")
+        if await should_notify(notify_to, "notify_edit"):
+            try: await bot.send_message(notify_to, notify, parse_mode="HTML")
+            except Exception as ex: logger.warning(f"edit notify {notify_to}: {ex}")
     mtype, fid = extract_media(msg)
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
-                        new_text, mtype, fid)
+                        new_text, mtype, fid, owner_id=notify_to)
 
 # Business API
 @event_router.business_message()
 async def on_biz_message(msg: Message, bot: Bot):
-    await _do_cache(msg)
+    # owner_id — владелец бизнес-аккаунта к которому подключён бот
+    owner_id = getattr(msg, "via_business_bot", None)
+    # aiogram передаёт business_connection_id, используем его для поиска владельца
+    bc_id = getattr(msg, "business_connection_id", None)
+    # owner хранится в самом update через business_connection
+    # Берём из кэша подключений если есть, иначе None
+    owner_id = _biz_owners.get(bc_id) if bc_id else None
+    await _do_cache(msg, owner_id=owner_id)
 
 @event_router.edited_business_message()
 async def on_biz_edit(msg: Message, bot: Bot):
-    await on_edit(msg, bot)
+    bc_id = getattr(msg, "business_connection_id", None)
+    owner_id = _biz_owners.get(bc_id) if bc_id else None
+    await on_edit(msg, bot, owner_id=owner_id)
 
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
     if not chat_id: return
+    bc_id = getattr(event, "business_connection_id", None)
+    owner_id = _biz_owners.get(bc_id) if bc_id else None
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         if not cached: continue
-        await _send_deleted_notify(bot, cached)
+        await _send_deleted_notify(bot, cached, owner_id=owner_id)
         await delete_cached_message(chat_id, mid)
 
 @event_router.business_connection()
 async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     uid = bc.user.id
     await upsert_user(uid, bc.user.username, bc.user.first_name)
+    # Сохраняем связь connection_id -> owner_id
+    if hasattr(bc, "id") and bc.id:
+        _biz_owners[bc.id] = uid
     if not bc.is_enabled:
         try:
             await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
@@ -582,10 +593,9 @@ async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
-    # Сначала устанавливаем клавиатуру простым сообщением (без tg-emoji)
-    await msg.answer("👁 ShadowWatch", reply_markup=reply_kb())
-    # Потом красивое сообщение с анимированными эмодзи
     text = await start_text(u.id, u.first_name)
+    # reply_kb() отправляем отдельно без tg-emoji текста
+    await msg.answer("👁", reply_markup=reply_kb())
     await msg.answer(text, reply_markup=main_kb())
 
 # Inline-кнопка "Главное меню"
@@ -718,7 +728,7 @@ HELP_TEXT = (
     f"🗑 Удалённые сообщения — пришлю копию\n"
     f"✏️ Редактирования — было и стало\n"
     f"💣 Исчезающие медиа — перехват\n\n"
-    f"<i>⚠️ Требуется Telegram Premium на твоём аккаунте</i>"
+    f"<i>ℹ️ Для подключения нужен раздел Автоматизация чатов в настройках профиля</i>"
 )
 
 @user_router.callback_query(F.data == "u:help")
