@@ -34,7 +34,9 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════
 
 BOT_TOKEN     = os.getenv("BOT_TOKEN", "")
-DB_PATH       = os.getenv("DB_PATH", "/app/data/shadowwatch.db")
+# Хостинг bothost.ru хранит данные в DATA_DIR=/app/data
+_data_dir = os.getenv("DATA_DIR", os.getenv("DB_PATH_DIR", "/app/data"))
+DB_PATH   = os.getenv("DB_PATH", os.path.join(_data_dir, "shadowwatch.db"))
 ADMIN_IDS     = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
 BOT_USERNAME  = "ShadowSMSq_BOT"
 BOT_NAME      = "ShadowSMSq"
@@ -93,9 +95,25 @@ def _init_db_sync():
     CREATE TABLE IF NOT EXISTS targets (
         target_user_id INTEGER PRIMARY KEY,
         set_by INTEGER NOT NULL,
-        set_at TEXT DEFAULT (datetime('now'))
+        set_at TEXT DEFAULT (datetime('now')),
+        notify_messages INTEGER DEFAULT 1,
+        notify_deleted  INTEGER DEFAULT 1,
+        notify_edited   INTEGER DEFAULT 1,
+        notify_viewonce INTEGER DEFAULT 1
     );
+    -- Миграция: добавляем колонки если их нет (для уже существующих БД)
+    -- Выполняется безопасно через отдельные ALTER TABLE ниже
     """)
+    # Миграция targets — добавляем колонки настроек если их нет
+    for col, default in [
+        ("notify_messages", 1), ("notify_deleted", 1),
+        ("notify_edited", 1),   ("notify_viewonce", 1)
+    ]:
+        try:
+            c.execute(f"ALTER TABLE targets ADD COLUMN {col} INTEGER DEFAULT {default}")
+            c.commit()
+        except Exception:
+            pass  # колонка уже существует
     c.commit(); c.close()
 
 async def init_db():
@@ -167,11 +185,34 @@ async def add_target(target_uid: int, set_by: int):
     _targets.add(target_uid)
     def _f():
         c = _conn()
-        c.execute("""INSERT INTO targets (target_user_id, set_by)
-            VALUES (?, ?) ON CONFLICT(target_user_id) DO UPDATE SET set_by=excluded.set_by, set_at=datetime('now')""",
+        c.execute("""INSERT INTO targets (target_user_id, set_by, notify_messages, notify_deleted, notify_edited, notify_viewonce)
+            VALUES (?, ?, 1, 1, 1, 1)
+            ON CONFLICT(target_user_id) DO UPDATE SET set_by=excluded.set_by, set_at=datetime('now')""",
             (target_uid, set_by))
         c.commit(); c.close()
     await _run(_f)
+
+async def get_target(target_uid: int) -> dict | None:
+    def _f():
+        c = _conn()
+        row = c.execute("""SELECT t.*, u.username, u.first_name FROM targets t
+            LEFT JOIN users u ON u.user_id=t.target_user_id
+            WHERE t.target_user_id=?""", (target_uid,)).fetchone()
+        c.close(); return dict(row) if row else None
+    return await _run(_f)
+
+async def toggle_target_setting(target_uid: int, field: str):
+    if field not in {"notify_messages","notify_deleted","notify_edited","notify_viewonce"}: return
+    def _f():
+        c = _conn()
+        c.execute(f"UPDATE targets SET {field}=1-{field} WHERE target_user_id=?", (target_uid,))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def get_target_settings(target_uid: int) -> dict:
+    t = await get_target(target_uid)
+    if not t: return {"notify_messages":1,"notify_deleted":1,"notify_edited":1,"notify_viewonce":1}
+    return t
 
 async def remove_target(target_uid: int):
     _targets.discard(target_uid)
@@ -521,7 +562,11 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
             logger.warning(f"deleted notify {to}: {ex}")
 
     for r in recipients:
-        if is_tgt or await should_notify(r, "notify_delete"):
+        if is_tgt:
+            t_settings = await get_target_settings(author_uid)
+            if t_settings.get("notify_deleted", 1):
+                await _deliver(r)
+        elif await should_notify(r, "notify_delete"):
             await _deliver(r)
 
 
@@ -536,7 +581,12 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         f"{MEDIA_EMOJI.get(mtype,'📎')} <b>Тип:</b> {mtype}\n\n"
         f"🤖 @{BOT_USERNAME}"
     )
-    if not await should_notify(owner_id, "notify_self_destruct"): return
+    # Для таргетов — проверяем настройку notify_viewonce
+    if is_target(msg.from_user.id if msg.from_user else 0):
+        t_settings = await get_target_settings(msg.from_user.id)
+        if not t_settings.get("notify_viewonce", 1): return
+    elif not await should_notify(owner_id, "notify_self_destruct"):
+        return
     try:
         send = {
             "фото":  bot.send_photo,
@@ -585,6 +635,11 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     mtype, fid = extract_media(msg)
     text = msg.text or msg.caption
 
+    # Проверяем настройку notify_messages для таргета
+    t_settings = await get_target_settings(msg.from_user.id)
+    if not t_settings.get("notify_messages", 1):
+        return
+
     for admin_id in ADMIN_IDS:
         try:
             if fid and mtype:
@@ -622,9 +677,10 @@ event_router   = Router()
 payment_router = Router()
 
 class AdminStates(StatesGroup):
-    waiting_user_id = State()
-    waiting_days    = State()
-    waiting_revoke  = State()
+    waiting_user_id  = State()
+    waiting_days     = State()
+    waiting_revoke   = State()
+    waiting_target_id = State()
 
 # ══════════════════════════════════════════════
 # СОБЫТИЯ — кэширование и отслеживание
@@ -646,6 +702,9 @@ async def _do_cache(msg: Message, owner_id: int = None):
 
 @event_router.message()
 async def on_message(msg: Message, bot: Bot):
+    # Пропускаем business-сообщения — они обрабатываются в on_biz_message
+    if getattr(msg, "business_connection_id", None):
+        return
     # Для таргетов: owner_id = первый админ, чтобы уведомления об удалении/редактировании шли туда же
     owner_id = ADMIN_IDS[0] if (msg.from_user and is_target(msg.from_user.id) and ADMIN_IDS) else None
     await _do_cache(msg, owner_id=owner_id)
@@ -654,6 +713,9 @@ async def on_message(msg: Message, bot: Bot):
 
 @event_router.edited_message()
 async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
+    # Пропускаем business — обрабатывается в on_biz_edit
+    if owner_id is None and getattr(msg, "business_connection_id", None):
+        return
     if not msg.from_user or msg.from_user.is_bot: return
     u = msg.from_user
     cached    = await get_cached_message(msg.chat.id, msg.message_id)
@@ -676,10 +738,11 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
             f"🤖 @{BOT_USERNAME}"
         )
         if is_tgt:
-            # Таргет — шлём всем админам без проверки подписки
-            for admin_id in ADMIN_IDS:
-                try: await bot.send_message(admin_id, notify, parse_mode="HTML")
-                except Exception as ex: logger.warning(f"target edit notify {admin_id}: {ex}")
+            t_settings = await get_target_settings(u.id)
+            if t_settings.get("notify_edited", 1):
+                for admin_id in ADMIN_IDS:
+                    try: await bot.send_message(admin_id, notify, parse_mode="HTML")
+                    except Exception as ex: logger.warning(f"target edit notify {admin_id}: {ex}")
         elif notify_to and await should_notify(notify_to, "notify_edit"):
             try: await bot.send_message(notify_to, notify, parse_mode="HTML")
             except Exception as ex: logger.warning(f"edit notify {notify_to}: {ex}")
@@ -1149,71 +1212,195 @@ async def adm_subs(call: CallbackQuery):
 
 # ── Таргеты ──
 
+def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
+    """Список таргетов с кнопкой настроек для каждого"""
+    rows = []
+    for t in targets:
+        name = t.get("first_name") or "—"
+        uname = f" @{t['username']}" if t.get("username") else ""
+        rows.append([InlineKeyboardButton(
+            text=f"🎯 {name}{uname}",
+            callback_data=f"tgt:view:{t['target_user_id']}"
+        )])
+    rows.append([InlineKeyboardButton(text="➕ Добавить таргет", callback_data="tgt:add")])
+    rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
+    """Панель настроек конкретного таргета"""
+    uid = t["target_user_id"]
+    def icon(val): return "✅" if val else "❌"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_messages',1))} Сообщения",
+            callback_data=f"tgt:toggle:{uid}:notify_messages"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_deleted',1))} Удалённые",
+            callback_data=f"tgt:toggle:{uid}:notify_deleted"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_edited',1))} Редактирования",
+            callback_data=f"tgt:toggle:{uid}:notify_edited"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_viewonce',1))} Исчезающие медиа",
+            callback_data=f"tgt:toggle:{uid}:notify_viewonce"
+        )],
+        [InlineKeyboardButton(text="🗑 Удалить таргет", callback_data=f"tgt:del:{uid}")],
+        [InlineKeyboardButton(text="◀️ К списку", callback_data="adm:targets")],
+    ])
+
 @admin_router.callback_query(F.data == "adm:targets")
 async def adm_targets(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     targets = await get_all_targets()
     if not targets:
-        text = "🎯 <b>Таргеты</b>\n\nСписок пуст.\n\nДобавить: <code>/target ID</code>\nУдалить: <code>/untarget ID</code>"
+        text = "🎯 <b>Таргеты</b>\n\nСписок пуст. Нажми кнопку ниже чтобы добавить."
     else:
-        lines = ["🎯 <b>Активные таргеты</b>\n"]
-        for t in targets:
-            uname = f"@{t['username']}" if t.get("username") else "—"
-            lines.append(f"• <code>{t['target_user_id']}</code> | {t.get('first_name') or '—'} | {uname}")
-        lines.append("\nУдалить: <code>/untarget ID</code>")
-        text = "\n".join(lines)
-    await safe_edit(call, text, reply_markup=adm_back_kb())
+        text = f"🎯 <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
+    await safe_edit(call, text, reply_markup=targets_list_kb(targets))
     await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:view:"))
+async def tgt_view(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    t = await get_target(uid)
+    if not t:
+        await call.answer("Таргет не найден", show_alert=True)
+        return await adm_targets(call)
+    name = t.get("first_name") or "—"
+    uname = f" (@{t['username']})" if t.get("username") else ""
+    text = (
+        f"🎯 <b>Таргет: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит от этого пользователя:\n\n"
+        f"✅ включено · ❌ выключено"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:toggle:"))
+async def tgt_toggle(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    parts = call.data.split(":")
+    uid   = int(parts[2])
+    field = parts[3]
+    await toggle_target_setting(uid, field)
+    t = await get_target(uid)
+    if not t: return await call.answer("Ошибка", show_alert=True)
+    name = t.get("first_name") or "—"
+    uname = f" (@{t['username']})" if t.get("username") else ""
+    text = (
+        f"🎯 <b>Таргет: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит от этого пользователя:\n\n"
+        f"✅ включено · ❌ выключено"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t))
+    await call.answer("✅ Сохранено")
+
+@admin_router.callback_query(F.data.startswith("tgt:del:"))
+async def tgt_delete(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    await remove_target(uid)
+    await call.answer("✅ Таргет удалён", show_alert=True)
+    targets = await get_all_targets()
+    text = f"🎯 <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:" if targets else "🎯 <b>Таргеты</b>\n\nСписок пуст."
+    await safe_edit(call, text, reply_markup=targets_list_kb(targets))
+
+@admin_router.callback_query(F.data == "tgt:add")
+async def tgt_add_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    await state.set_state(AdminStates.waiting_target_id)
+
+    # Показываем список пользователей из БД для выбора
+    users = await get_all_users()
+    if users:
+        rows = []
+        for u in users[:20]:  # максимум 20 в списке
+            name = u.get("first_name") or "—"
+            uname = f" @{u['username']}" if u.get("username") else ""
+            already = "🎯 " if is_target(u["user_id"]) else ""
+            rows.append([InlineKeyboardButton(
+                text=f"{already}{name}{uname} [{u['user_id']}]",
+                callback_data=f"tgt:pick:{u['user_id']}"
+            )])
+        rows.append([InlineKeyboardButton(text="✏️ Ввести ID вручную", callback_data="tgt:manual")])
+        rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")])
+        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        await safe_edit(call, "🎯 <b>Выбери пользователя из списка:</b>\n\n🎯 = уже таргет", reply_markup=kb)
+    else:
+        await safe_edit(call,
+            "🎯 <b>Добавить таргет</b>\n\nПользователей пока нет в базе.\nВведи Telegram ID вручную:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")
+            ]]))
+    await call.answer()
+
+@admin_router.callback_query(F.data == "tgt:manual")
+async def tgt_manual(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    await state.set_state(AdminStates.waiting_target_id)
+    await safe_edit(call,
+        "🎯 <b>Добавить таргет</b>\n\nВведи Telegram ID пользователя:\n<i>Отмена: /admin</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")
+        ]]))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:pick:"))
+async def tgt_pick(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    await state.clear()
+    await add_target(uid, call.from_user.id)
+    t = await get_target(uid)
+    name = t.get("first_name") or "—"
+    uname = f" (@{t['username']})" if t.get("username") else ""
+    text = (
+        f"🎯 <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит:"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t))
+    await call.answer("✅ Таргет добавлен!")
+
+@admin_router.message(AdminStates.waiting_target_id)
+async def tgt_add_id(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id): return
+    try:
+        uid = int(msg.text.strip())
+    except ValueError:
+        return await msg.answer("❗ Введи числовой ID.")
+    await state.clear()
+    await add_target(uid, msg.from_user.id)
+    t = await get_target(uid)
+    name = t.get("first_name") or f"ID {uid}"
+    uname = f" (@{t['username']})" if t and t.get("username") else ""
+    await msg.answer(
+        f"🎯 <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой уведомления в /admin → Таргеты"
+    )
 
 @admin_router.message(Command("target"))
 async def cmd_target(msg: Message):
     if not is_admin(msg.from_user.id): return await msg.answer("⛔ Нет доступа.")
     parts = msg.text.strip().split()
     if len(parts) < 2:
-        return await msg.answer(
-            "🎯 <b>Использование:</b> <code>/target ID</code>\n\n"
-            "После добавления все сообщения этого пользователя будут зеркалироваться тебе.\n"
-            "Пользователь ничего не заметит.\n\n"
-            "Список таргетов: /admin → Таргеты\n"
-            "Удалить: <code>/untarget ID</code>"
-        )
+        return await msg.answer("🎯 Используй панель: /admin → Таргеты")
     try:
         target_uid = int(parts[1])
     except ValueError:
         return await msg.answer("❗ ID должен быть числом.")
-
     await add_target(target_uid, msg.from_user.id)
-
-    # Пытаемся найти имя в базе
-    def _get_name():
-        c = _conn()
-        row = c.execute("SELECT username, first_name FROM users WHERE user_id=?", (target_uid,)).fetchone()
-        c.close(); return dict(row) if row else None
-    info = await _run(_get_name)
-    name_str = ""
-    if info:
-        name_str = f"\n👤 {info.get('first_name') or '—'}"
-        if info.get("username"): name_str += f" (@{info['username']})"
-
     await msg.answer(
-        f"🎯 <b>Таргет добавлен!</b>\n\n"
-        f"🆔 <code>{target_uid}</code>{name_str}\n\n"
-        f"Все входящие сообщения этого пользователя теперь зеркалируются тебе.\n"
-        f"Для отмены: <code>/untarget {target_uid}</code>"
+        f"🎯 <b>Таргет добавлен!</b>\n🆔 <code>{target_uid}</code>\n\n"
+        f"Настройки: /admin → Таргеты"
     )
-
-@admin_router.message(Command("untarget"))
-async def cmd_untarget(msg: Message):
-    if not is_admin(msg.from_user.id): return await msg.answer("⛔ Нет доступа.")
-    parts = msg.text.strip().split()
-    if len(parts) < 2:
-        return await msg.answer("Использование: <code>/untarget ID</code>")
-    try:
-        target_uid = int(parts[1])
-    except ValueError:
-        return await msg.answer("❗ ID должен быть числом.")
-    await remove_target(target_uid)
-    await msg.answer(f"✅ Таргет <code>{target_uid}</code> удалён.")
 
 # ── Выдача подписки ──
 
