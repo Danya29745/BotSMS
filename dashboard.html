@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}ShadowEye — Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  {% set msg = request.query_params.get('msg') %}
+  {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat">
+      <div class="stat-label">Всего юзеров</div>
+      <div class="stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Активных подписок</div>
+      <div class="stat-value" style="color:#22c55e">{{ stats.active }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Без подписки</div>
+      <div class="stat-value" style="color:#ef4444">{{ stats.inactive }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Новых сегодня</div>
+      <div class="stat-value" style="color:#6c63ff">{{ stats.today }}</div>
+    </div>
+  </div>
+
+  <!-- Grant form -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">➕ Выдать подписку</div>
+    <div class="card-body">
+      <form method="post" action="/grant">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Telegram ID пользователя</label>
+            <input type="number" name="user_id" placeholder="123456789" style="width:200px" required>
+          </div>
+          <div class="form-group">
+            <label>Дней</label>
+            <select name="days" style="width:120px">
+              <option value="1">1 день</option>
+              <option value="3">3 дня</option>
+              <option value="7">7 дней</option>
+              <option value="14">14 дней</option>
+              <option value="30" selected>30 дней</option>
+              <option value="60">60 дней</option>
+              <option value="90">90 дней</option>
+              <option value="180">180 дней</option>
+              <option value="365">1 год</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn btn-primary">Выдать подписку</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Users table -->
+  <div class="card">
+    <div class="card-header">👥 Пользователи ({{ users | length }})</div>
+    <div class="card-body" style="padding:0">
+      {% if users %}
+      <table>
+        <thead>
+          <tr>
+            <th>Пользователь</th>
+            <th>ID</th>
+            <th>Статус</th>
+            <th>Истекает</th>
+            <th>Зарегистрирован</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>
+              <a href="/user/{{ u.user_id }}">
+                {% if u.username %}@{{ u.username }}{% else %}{{ u.first_name or '—' }}{% endif %}
+              </a>
+            </td>
+            <td style="color:#8890a4;font-family:monospace">{{ u.user_id }}</td>
+            <td>
+              {% if u.active %}
+                <span class="badge badge-green">✅ Активна</span>
+              {% else %}
+                <span class="badge badge-red">❌ Нет</span>
+              {% endif %}
+            </td>
+            <td style="color:#8890a4">
+              {% if u.expires_at %}
+                {{ u.expires_at.strftime('%d.%m.%Y %H:%M') }}
+              {% else %}—{% endif %}
+            </td>
+            <td style="color:#8890a4">
+              {% if u.created_at %}{{ u.created_at.strftime('%d.%m.%Y') }}{% else %}—{% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <form method="post" action="/grant" style="display:inline">
+                  <input type="hidden" name="user_id" value="{{ u.user_id }}">
+                  <input type="hidden" name="days" value="30">
+                  <button type="submit" class="btn btn-ghost" style="font-size:12px;padding:4px 10px">+30д</button>
+                </form>
+                <form method="post" action="/revoke" style="display:inline" onsubmit="return confirm('Отозвать подписку?')">
+                  <input type="hidden" name="user_id" value="{{ u.user_id }}">
+                  <button type="submit" class="btn btn-danger" style="font-size:12px;padding:4px 10px">Отозвать</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:40px;text-align:center;color:#8890a4">Пользователей пока нет</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShadowEye — Вход</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8eaf0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: #13161d; border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 40px 36px; width: 340px; }
+  .logo { text-align: center; font-size: 42px; margin-bottom: 8px; }
+  .title { text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .sub { text-align: center; font-size: 13px; color: #8890a4; margin-bottom: 28px; }
+  label { font-size: 12px; color: #8890a4; display: block; margin-bottom: 5px; }
+  input { width: 100%; background: #1a1e28; border: 1px solid rgba(255,255,255,0.07); color: #e8eaf0; border-radius: 8px; padding: 10px 14px; font-size: 14px; outline: none; margin-bottom: 16px; }
+  input:focus { border-color: #6c63ff; }
+  input::placeholder { color: #4b5263; }
+  button { width: 100%; background: #6c63ff; color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button:hover { background: #7c73ff; }
+  .error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">👁️</div>
+    <div class="title">ShadowEye</div>
+    <div class="sub">Панель администратора</div>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <label>Пароль</label>
+      <input type="password" name="password" placeholder="Введите пароль..." autofocus>
+      <button type="submit">Войти →</button>
+    </form>
+  </div>
+</body>
+</html>
