@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 # КОНФИГ
 # ══════════════════════════════════════════════
 
-BOT_TOKEN     = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN        = os.getenv("BOT_TOKEN", "")
+START_PHOTO_URL  = os.getenv("START_PHOTO_URL", "")   # URL или Telegram file_id картинки /start
 _data_dir     = os.getenv("DATA_DIR", os.getenv("DB_PATH_DIR", "/app/data"))
 DB_PATH       = os.getenv("DB_PATH", os.path.join(_data_dir, "shadowwatch.db"))
 ADMIN_IDS     = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
@@ -563,18 +564,31 @@ def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
 START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на реальный file_id после первой отправки
 
 async def start_text(uid: int, first_name: str) -> str:
+    is_trial = False
     if is_admin(uid):
         status_line = "👑 Администратор — безлимитный доступ"
     elif await is_subscribed(uid):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        status_line = f"✅ Подписка активна · осталось {days_left} дн."
+        # Определяем, это тестовый период (цена 0) или платная подписка
+        is_trial = sub.get("price", 1) == 0
+        exp_str = exp.strftime("%d.%m.%Y")
+        if is_trial:
+            status_line = f"🎁 Тестовый период активен · осталось {days_left} дн."
+        else:
+            status_line = f"✅ Подписка активна до {exp_str}"
     else:
         status_line = "❌ Подписка не активна"
+
+    trial_notice = (
+        "\n⚠️ <i>Вы используете <b>тестовый период</b> — 7 дней бесплатно.\n"
+        "После окончания потребуется оформить подписку.</i>\n"
+    ) if is_trial else ""
+
     return (
-        f"👋 <b>Добро пожаловать!</b>\n\n"
-        f"Этот бот создан, чтобы помогать вам в переписке.\n\n"
+        f"👋 <b>Привет, {first_name}!</b>\n\n"
+        f"Добро пожаловать в бота — я слежу за важным, пока ты не заметил 🕵️\n\n"
         f"<b>Возможности бота:</b>\n"
         f"🗑 Моментально пришлёт уведомление, если ваш собеседник <b>удалит</b> сообщение\n"
         f"✏️ Покажет что было <b>изменено</b> в сообщении\n"
@@ -585,6 +599,7 @@ async def start_text(uid: int, first_name: str) -> str:
         f"2. Выберите <b>«Автоматизация чатов»</b>\n"
         f"3. Введите в поле: <code>@{BOT_USERNAME}</code>\n\n"
         f"<b>Статус:</b> {status_line}"
+        f"{trial_notice}"
     )
 
 HELP_TEXT = (
@@ -1198,30 +1213,34 @@ async def cmd_start(msg: Message, state: FSMContext):
     global _start_photo_file_id
     photo_path = Path(__file__).parent / "start_image.jpg"
 
+    # Определяем источник фото: кэш → файл на диске → URL/file_id из .env
+    photo_source = None
+    use_cached   = False
+    if _start_photo_file_id:
+        photo_source = _start_photo_file_id
+        use_cached   = True
+    elif photo_path.exists():
+        photo_source = FSInputFile(photo_path)
+    elif START_PHOTO_URL:
+        photo_source = START_PHOTO_URL
+
     try:
-        if _start_photo_file_id:
-            # Используем закэшированный file_id — быстро
+        if photo_source is not None:
             sent = await msg.answer_photo(
-                photo=_start_photo_file_id,
+                photo=photo_source,
                 caption=text,
-                reply_markup=start_kb()
+                reply_markup=start_kb(),
+                parse_mode="HTML"
             )
-        elif photo_path.exists():
-            # Первая отправка — загружаем файл с диска
-            sent = await msg.answer_photo(
-                photo=FSInputFile(photo_path),
-                caption=text,
-                reply_markup=start_kb()
-            )
-            # Кэшируем file_id для последующих отправок
-            if sent.photo:
+            # Кэшируем Telegram file_id после первой успешной загрузки
+            if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
-            # Картинки нет — отправляем только текст
-            await msg.answer(text, reply_markup=start_kb())
+            # Ни файла, ни URL — только текст
+            await msg.answer(text, reply_markup=start_kb(), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        await msg.answer(text, reply_markup=start_kb())
+        await msg.answer(text, reply_markup=start_kb(), parse_mode="HTML")
 
     # Если только что выдали пробник — дополнительное уведомление
     if trial_just_activated:
