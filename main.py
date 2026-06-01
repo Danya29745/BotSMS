@@ -1,6 +1,1 @@
-.env
-*.db
-media/
-__pycache__/
-*.pyc
-.DS_Store
+BOT_TOKEN=8766418607:AAF-C1h0kSU23aJfBP-OERryZFwjEOahc-M
