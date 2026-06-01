@@ -471,9 +471,10 @@ def start_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="⚡️ Подключить бота",
-            url="tg://settings/edit"
+            url="https://t.me/settings/business/chatbots"
         )],
         [InlineKeyboardButton(text="📖 Инструкция", callback_data="u:help")],
+        [InlineKeyboardButton(text="💳 Тарифы",     callback_data="u:plans")],
     ])
 
 def main_kb():
@@ -483,7 +484,7 @@ def main_kb():
         [InlineKeyboardButton(text="⚙️ Настройки", callback_data="u:settings"),
          InlineKeyboardButton(text="📖 Инструкция",callback_data="u:help")],
         [InlineKeyboardButton(text="⚡️ Подключить бота",
-                              url="tg://settings/edit")],
+                              url="https://t.me/settings/business/chatbots")],
     ])
 
 def back_kb():
@@ -579,17 +580,43 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 HELP_TEXT = (
-    f"📖 <b>Быстрая инструкция подключения</b>\n\n"
-    f"✨ <b>Всего 3 действия:</b>\n\n"
-    f"1️⃣ Заранее скопируй: <code>@ShadowSMSq_bot</code>\n\n"
-    f"2️⃣ Нажми кнопку <b>«⚡️ Подключить»</b>\n"
-    f"Откроются настройки Telegram.\n\n"
-    f"3️⃣ Открой <b>Автоматизацию чатов</b>, вставь скопированный юзернейм и подтверди подключение.\n\n"
-    f"✅ После этого бот автоматически начнёт работу.\n\n"
-    f"🔹 Отслеживание удалённых сообщений\n"
-    f"🔹 Фиксация изменений сообщений\n"
-    f"🔹 Сохранение исчезающих медиа\n\n"
-    f"🚀 Всё готово за несколько секунд."
+    f"📖 <b>Инструкция по использованию</b>\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"⚡️ <b>Шаг 1 — Подключение</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Нажми кнопку <b>«⚡️ Подключить бота»</b> ниже\n"
+    f"или вручную:\n"
+    f"📱 Настройки → <b>Автоматизация чатов</b>\n"
+    f"→ Добавить бота → <code>@{BOT_USERNAME}</code>\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🗑 <b>Удалённые сообщения</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Как только кто-то удалит сообщение в твоих чатах — "
+    f"бот моментально пришлёт тебе его копию с именем автора.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"✏️ <b>Редактирования</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Бот покажет что <b>было</b> и что <b>стало</b> — "
+    f"ничего не скроется.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💣 <b>Исчезающие медиа</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Фото и видео «просмотреть один раз» — "
+    f"бот перехватит и сохранит их до того как они исчезнут.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🎯 <b>Таргет (слежка)</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Добавь человека в таргет — и все его сообщения "
+    f"будут зеркалироваться тебе в реальном времени.\n"
+    f"Настрой что именно приходит: текст, удалённые, "
+    f"редактирования, исчезающие медиа.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"⚙️ <b>Настройки</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"В разделе Настройки можно включить или выключить "
+    f"каждый тип уведомлений по отдельности.\n\n"
+    f"<i>ℹ️ Telegram Premium не требуется — "
+    f"автоматизация доступна всем пользователям</i>"
 )
 
 # ══════════════════════════════════════════════
@@ -947,7 +974,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="⚡️ Подключить снова",
-                                         url="tg://settings/edit")]
+                                         url="https://t.me/settings/business/chatbots")]
                 ]))
         except: pass
         return
@@ -1023,21 +1050,6 @@ async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
-
-    if not await has_used_trial(u.id) and not is_admin(u.id):
-        await mark_trial_used(u.id)
-        exp = await grant_subscription(u.id, 7, 0)
-        exp_str = exp.strftime("%d.%m.%Y")
-        trial_text = (
-            f"🎁 <b>Пробная подписка активирована!</b>\n\n"
-            f"Тебе автоматически выдан доступ на <b>7 дней</b>.\n"
-            f"📅 Действует до: <b>{exp_str}</b>\n\n"
-            f"👁 <b>{BOT_NAME}</b> — контроль удалённых сообщений, правок и исчезающих медиа.\n\n"
-            f"Подключи бота и начни пользоваться прямо сейчас 👇"
-        )
-        await msg.answer(trial_text, reply_markup=start_kb())
-        return
-
     text = await start_text(u.id, u.first_name)
     await msg.answer(text, reply_markup=start_kb())
 
@@ -1172,7 +1184,7 @@ async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚡️ Подключить бота",
-                              url="tg://settings/edit")],
+                              url="https://t.me/settings/business/chatbots")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     if is_call:
