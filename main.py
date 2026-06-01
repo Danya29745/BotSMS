@@ -564,38 +564,49 @@ def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
 START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на реальный file_id после первой отправки
 
 async def start_text(uid: int, first_name: str) -> str:
+    # Анимированные Premium-эмодзи (у non-Premium показываются как обычные)
+    e_wave  = '<tg-emoji emoji-id="5391215196520824258">👋</tg-emoji>'
+    e_spy   = '<tg-emoji emoji-id="5449735272007515220">🕵️</tg-emoji>'
+    e_del   = '<tg-emoji emoji-id="5467532818188632160">🗑</tg-emoji>'
+    e_edit  = '<tg-emoji emoji-id="5471987862674265387">✏️</tg-emoji>'
+    e_bomb  = '<tg-emoji emoji-id="5377359034965796612">💣</tg-emoji>'
+    e_dl    = '<tg-emoji emoji-id="5440539497383087970">📥</tg-emoji>'
+    e_bolt  = '<tg-emoji emoji-id="5445284980978621387">⚡️</tg-emoji>'
+    e_check = '<tg-emoji emoji-id="5436040291507247438">✅</tg-emoji>'
+    e_crown = '<tg-emoji emoji-id="5361843798418769442">👑</tg-emoji>'
+    e_gift  = '<tg-emoji emoji-id="5445284982394498155">🎁</tg-emoji>'
+    e_warn  = '<tg-emoji emoji-id="5467468661319145490">⚠️</tg-emoji>'
+    e_cross = '<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji>'
+
     is_trial = False
     if is_admin(uid):
-        status_line = "👑 Администратор — безлимитный доступ"
+        status_line = f"{e_crown} Администратор — безлимитный доступ"
     elif await is_subscribed(uid):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        # Определяем, это тестовый период (цена 0) или платная подписка
         is_trial = sub.get("price", 1) == 0
         exp_str = exp.strftime("%d.%m.%Y")
         if is_trial:
-            status_line = f"🎁 Тестовый период активен · осталось {days_left} дн."
+            status_line = f"{e_gift} Тестовый период активен · осталось {days_left} дн."
         else:
-            status_line = f"✅ Подписка активна до {exp_str}"
+            status_line = f"{e_check} Подписка активна до {exp_str}"
     else:
-        status_line = "❌ Подписка не активна"
+        status_line = f"{e_cross} Подписка не активна"
 
     trial_notice = (
-        "\n⚠️ <i>Вы используете <b>тестовый период</b> — 7 дней бесплатно.\n"
+        f"\n{e_warn} <i>Вы используете <b>тестовый период</b> — 7 дней бесплатно.\n"
         "После окончания потребуется оформить подписку.</i>\n"
     ) if is_trial else ""
 
     return (
-        f"👋 <b>Привет, {first_name}!</b>\n\n"
-        f"Добро пожаловать в бота — я слежу за важным, пока ты не заметил 🕵️\n\n"
         f"<b>Возможности бота:</b>\n"
-        f"🗑 Моментально пришлёт уведомление, если ваш собеседник <b>удалит</b> сообщение\n"
-        f"✏️ Покажет что было <b>изменено</b> в сообщении\n"
-        f"💣 Сохраняет <b>исчезающие медиа</b> (фото/видео с таймером)\n"
-        f"📥 <b>Скачивает файлы с таймером</b> — фото, видео, голосовые, кружки\n\n"
+        f"{e_del} Моментально пришлёт уведомление, если ваш собеседник <b>удалит</b> сообщение\n"
+        f"{e_edit} Покажет что было <b>изменено</b> в сообщении\n"
+        f"{e_bomb} Сохраняет <b>исчезающие медиа</b> (фото/видео с таймером)\n"
+        f"{e_dl} <b>Скачивает файлы с таймером</b> — фото, видео, голосовые, кружки\n\n"
         f"<b>Как подключить:</b>\n"
-        f"1. Нажмите кнопку <b>«⚡️ Подключить»</b> ниже\n"
+        f"1. Нажмите кнопку <b>«{e_bolt} Подключить»</b> ниже\n"
         f"2. Выберите <b>«Автоматизация чатов»</b>\n"
         f"3. Введите в поле: <code>@{BOT_USERNAME}</code>\n\n"
         f"<b>Статус:</b> {status_line}"
