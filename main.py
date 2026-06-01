@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-👁 ShadowWatch Bot — исправленная версия
+👁 ShadowSMSq Bot
 """
 
 import asyncio, logging, os, sqlite3
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict
 
 try:
@@ -33,40 +34,17 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN", "")
-DB_PATH      = os.getenv("DB_PATH", "shadowwatch.db")
+_data_dir    = os.getenv("DATA_DIR", os.getenv("DB_PATH_DIR", "/app/data"))
+DB_PATH      = os.getenv("DB_PATH", os.path.join(_data_dir, "shadowwatch.db"))
 ADMIN_IDS    = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()]
 BOT_USERNAME = "ShadowSMSq_BOT"
+BOT_NAME     = "ShadowSMSq"
 MSG_CACHE_TTL = int(os.getenv("MESSAGE_CACHE_TTL", "86400"))
 
-# ── Анимированные эмодзи ──
-_AE = {
-    "👁":  "5368324170671202286",
-    "🗑":  "5463006522278981341",
-    "✏️": "5469835553556640139",
-    "💣":  "5411093492302864150",
-    "🎁":  "5373058572649699086",
-    "⭐":  "5361800486327202251",
-    "👑":  "5361315553439728262",
-    "💳":  "5471952986970267163",
-    "✅":  "5368324170671202286",
-    "❌":  "5447644880824181073",
-    "🔔":  "5373141891321699086",
-    "🎉":  "5373058572649699086",
-    "🔥":  "5364580842178811152",
-    "📅":  "5471931082790226428",
-    "📦":  "5471968242696816270",
-    "🔒":  "5373141891321699086",
-}
-def e(emoji: str) -> str:
-    eid = _AE.get(emoji)
-    return f"<tg-emoji emoji-id='{eid}'>{emoji}</tg-emoji>" if eid else emoji
-
-# ── Тарифы ──
 PLANS = {
-    "trial": {"label": "Пробный период", "days": 7,   "stars": 0,   "desc": "7 дней бесплатно"},
-    "month": {"label": "1 месяц",        "days": 30,  "stars": 35,  "desc": "1 месяц"},
-    "three": {"label": "3 месяца",       "days": 90,  "stars": 89,  "desc": "3 месяца"},
-    "year":  {"label": "1 год",          "days": 365, "stars": 299, "desc": "1 год"},
+    "month": {"label": "1 месяц",   "days": 30,  "stars": 35,  "desc": "1 месяц"},
+    "three": {"label": "3 месяца",  "days": 90,  "stars": 89,  "desc": "3 месяца"},
+    "year":  {"label": "1 год",     "days": 365, "stars": 299, "desc": "1 год"},
 }
 
 # ══════════════════════════════════════════════
@@ -74,70 +52,100 @@ PLANS = {
 # ══════════════════════════════════════════════
 
 def _conn():
-    c = sqlite3.connect(DB_PATH); c.row_factory = sqlite3.Row; return c
+    c = sqlite3.connect(DB_PATH)
+    c.row_factory = sqlite3.Row
+    return c
 
 def _init_db_sync():
     c = _conn(); cur = c.cursor()
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY, username TEXT, first_name TEXT,
-        registered TEXT DEFAULT (datetime('now')), last_seen TEXT DEFAULT (datetime('now'))
+        user_id    INTEGER PRIMARY KEY,
+        username   TEXT,
+        first_name TEXT,
+        registered TEXT DEFAULT (datetime('now')),
+        last_seen  TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS subscriptions (
-        user_id INTEGER PRIMARY KEY, expires_at TEXT NOT NULL,
-        granted_by INTEGER, granted_at TEXT DEFAULT (datetime('now'))
+        user_id    INTEGER PRIMARY KEY,
+        expires_at TEXT NOT NULL,
+        granted_by INTEGER,
+        granted_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS trial_used (
-        user_id INTEGER PRIMARY KEY, used_at TEXT DEFAULT (datetime('now'))
+        user_id INTEGER PRIMARY KEY,
+        used_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS message_cache (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        chat_id INTEGER NOT NULL, message_id INTEGER NOT NULL,
-        owner_id INTEGER,
-        user_id INTEGER, username TEXT, first_name TEXT,
-        text TEXT, media_type TEXT, file_id TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id     INTEGER NOT NULL,
+        message_id  INTEGER NOT NULL,
+        owner_id    INTEGER,
+        user_id     INTEGER,
+        username    TEXT,
+        first_name  TEXT,
+        text        TEXT,
+        media_type  TEXT,
+        file_id     TEXT,
+        is_view_once INTEGER DEFAULT 0,
+        created_at  TEXT DEFAULT (datetime('now')),
         UNIQUE(chat_id, message_id)
     );
     CREATE TABLE IF NOT EXISTS user_settings (
-        user_id INTEGER PRIMARY KEY,
-        notify_delete INTEGER DEFAULT 1,
-        notify_edit INTEGER DEFAULT 1,
+        user_id              INTEGER PRIMARY KEY,
+        notify_delete        INTEGER DEFAULT 1,
+        notify_edit          INTEGER DEFAULT 1,
         notify_self_destruct INTEGER DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS business_connections (
         connection_id TEXT PRIMARY KEY,
-        owner_id INTEGER NOT NULL,
-        connected_at TEXT DEFAULT (datetime('now'))
+        owner_id      INTEGER NOT NULL,
+        connected_at  TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS targets (
+        target_user_id  INTEGER PRIMARY KEY,
+        set_by          INTEGER NOT NULL,
+        set_at          TEXT DEFAULT (datetime('now')),
+        notify_messages INTEGER DEFAULT 1,
+        notify_deleted  INTEGER DEFAULT 1,
+        notify_edited   INTEGER DEFAULT 1,
+        notify_viewonce INTEGER DEFAULT 1
     );
     """)
+    # Миграция targets — добавляем колонки если их нет (для старых БД)
+    for col, default in [
+        ("notify_messages", 1), ("notify_deleted", 1),
+        ("notify_edited", 1), ("notify_viewonce", 1)
+    ]:
+        try:
+            c.execute(f"ALTER TABLE targets ADD COLUMN {col} INTEGER DEFAULT {default}")
+            c.commit()
+        except Exception:
+            pass
     c.commit(); c.close()
 
 async def init_db():
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     await asyncio.get_event_loop().run_in_executor(None, _init_db_sync)
 
 def _run(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
 
-# ── ИСПРАВЛЕНИЕ #1: biz_owners теперь хранится в БД и кэшируется в памяти ──
+# ── Business connections ──
 
-# Кэш в памяти (восстанавливается из БД при старте)
 _biz_owners: dict = {}
 
 async def save_biz_connection(connection_id: str, owner_id: int):
-    """Сохранить business_connection_id -> owner_id в БД и в кэш памяти"""
     _biz_owners[connection_id] = owner_id
     def _f():
         c = _conn()
         c.execute("""INSERT INTO business_connections (connection_id, owner_id)
-            VALUES (?, ?)
-            ON CONFLICT(connection_id) DO UPDATE SET owner_id=excluded.owner_id""",
+            VALUES (?, ?) ON CONFLICT(connection_id) DO UPDATE SET owner_id=excluded.owner_id""",
             (connection_id, owner_id))
         c.commit(); c.close()
     await _run(_f)
 
 async def remove_biz_connection(connection_id: str):
-    """Удалить business подключение (при отключении)"""
     _biz_owners.pop(connection_id, None)
     def _f():
         c = _conn()
@@ -146,7 +154,6 @@ async def remove_biz_connection(connection_id: str):
     await _run(_f)
 
 async def restore_biz_connections():
-    """Загрузить все сохранённые подключения из БД в память при старте бота"""
     def _f():
         c = _conn()
         rows = c.execute("SELECT connection_id, owner_id FROM business_connections").fetchall()
@@ -158,72 +165,142 @@ async def restore_biz_connections():
     logger.info(f"Восстановлено {len(pairs)} business-подключений из БД")
 
 def get_biz_owner(bc_id: str | None) -> int | None:
-    """Получить owner_id по business_connection_id (только из кэша памяти)"""
-    if not bc_id:
-        return None
+    if not bc_id: return None
     return _biz_owners.get(bc_id)
 
 async def resolve_biz_owner(bc_id: str | None, bot: Bot) -> int | None:
-    """
-    Получить owner_id: сначала из кэша памяти,
-    если нет — запросить у Telegram API и сохранить в БД+память.
-    Это нужно после перезапуска бота, когда _biz_owners пуст,
-    а пользователи ещё не переподключились.
-    """
-    if not bc_id:
-        return None
-    # 1. Проверяем кэш памяти
+    if not bc_id: return None
     owner_id = _biz_owners.get(bc_id)
-    if owner_id:
-        return owner_id
-    # 2. Спрашиваем Telegram API
+    if owner_id: return owner_id
     try:
         bc = await bot.get_business_connection(bc_id)
         if bc and bc.user:
             owner_id = bc.user.id
             await upsert_user(owner_id, bc.user.username, bc.user.first_name)
             await save_biz_connection(bc_id, owner_id)
-            logger.info(f"resolve_biz_owner: восстановлено {bc_id} -> {owner_id} через API")
             return owner_id
     except Exception as ex:
-        logger.warning(f"resolve_biz_owner: не удалось получить connection {bc_id}: {ex}")
+        logger.warning(f"resolve_biz_owner: {bc_id}: {ex}")
     return None
 
-# ── Остальные функции БД ──
+# ── Targets ──
+
+_targets: set = set()
+
+async def add_target(target_uid: int, set_by: int):
+    _targets.add(target_uid)
+    def _f():
+        c = _conn()
+        c.execute("""INSERT INTO targets
+            (target_user_id, set_by, notify_messages, notify_deleted, notify_edited, notify_viewonce)
+            VALUES (?, ?, 1, 1, 1, 1)
+            ON CONFLICT(target_user_id) DO UPDATE SET
+            set_by=excluded.set_by, set_at=datetime('now')""",
+            (target_uid, set_by))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def get_target(target_uid: int) -> dict | None:
+    def _f():
+        c = _conn()
+        row = c.execute("""SELECT t.*, u.username, u.first_name FROM targets t
+            LEFT JOIN users u ON u.user_id=t.target_user_id
+            WHERE t.target_user_id=?""", (target_uid,)).fetchone()
+        c.close()
+        return dict(row) if row else None
+    return await _run(_f)
+
+async def toggle_target_setting(target_uid: int, field: str):
+    if field not in {"notify_messages","notify_deleted","notify_edited","notify_viewonce"}: return
+    def _f():
+        c = _conn()
+        c.execute(f"UPDATE targets SET {field}=1-{field} WHERE target_user_id=?", (target_uid,))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def get_target_settings(target_uid: int) -> dict:
+    t = await get_target(target_uid)
+    if not t: return {"notify_messages":1,"notify_deleted":1,"notify_edited":1,"notify_viewonce":1}
+    return t
+
+async def remove_target(target_uid: int):
+    _targets.discard(target_uid)
+    def _f():
+        c = _conn()
+        c.execute("DELETE FROM targets WHERE target_user_id=?", (target_uid,))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def restore_targets():
+    def _f():
+        c = _conn()
+        rows = c.execute("SELECT target_user_id FROM targets").fetchall()
+        c.close()
+        return [r["target_user_id"] for r in rows]
+    uids = await _run(_f)
+    for uid in uids:
+        _targets.add(uid)
+    logger.info(f"Восстановлено {len(uids)} targets из БД")
+
+async def get_all_targets():
+    def _f():
+        c = _conn()
+        rows = c.execute("""SELECT t.*, u.username, u.first_name FROM targets t
+            LEFT JOIN users u ON u.user_id=t.target_user_id
+            ORDER BY t.set_at DESC""").fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+    return await _run(_f)
+
+def is_target(uid: int) -> bool:
+    return uid in _targets
+
+# ── Пользователи и подписки ──
 
 async def upsert_user(uid, username=None, first_name=None):
     def _f():
         c = _conn()
-        c.execute("""INSERT INTO users (user_id,username,first_name,last_seen) VALUES (?,?,?,datetime('now'))
-            ON CONFLICT(user_id) DO UPDATE SET username=excluded.username,
-            first_name=excluded.first_name,last_seen=datetime('now')""", (uid,username,first_name))
+        c.execute("""INSERT INTO users (user_id, username, first_name, last_seen)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+            username=excluded.username,
+            first_name=excluded.first_name,
+            last_seen=datetime('now')""", (uid, username, first_name))
         c.commit(); c.close()
     await _run(_f)
 
 async def get_all_users():
     def _f():
-        c = _conn(); rows = c.execute("SELECT * FROM users ORDER BY registered DESC").fetchall()
-        c.close(); return [dict(r) for r in rows]
+        c = _conn()
+        rows = c.execute("SELECT * FROM users ORDER BY registered DESC").fetchall()
+        c.close()
+        return [dict(r) for r in rows]
     return await _run(_f)
 
 async def grant_subscription(uid, days, granted_by):
     def _f():
         c = _conn()
         exp = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("""INSERT INTO subscriptions (user_id,expires_at,granted_by) VALUES (?,?,?)
-            ON CONFLICT(user_id) DO UPDATE SET expires_at=?,granted_by=?,granted_at=datetime('now')""",
-            (uid,exp,granted_by,exp,granted_by))
-        c.commit(); c.close(); return exp
+        c.execute("""INSERT INTO subscriptions (user_id, expires_at, granted_by)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+            expires_at=?, granted_by=?, granted_at=datetime('now')""",
+            (uid, exp, granted_by, exp, granted_by))
+        c.commit(); c.close()
+        return exp
     return await _run(_f)
 
 async def revoke_subscription(uid):
     def _f():
-        c = _conn(); c.execute("DELETE FROM subscriptions WHERE user_id=?", (uid,)); c.commit(); c.close()
+        c = _conn()
+        c.execute("DELETE FROM subscriptions WHERE user_id=?", (uid,))
+        c.commit(); c.close()
     await _run(_f)
 
 async def is_subscribed(uid) -> bool:
     def _f():
-        c = _conn(); row = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?", (uid,)).fetchone()
+        c = _conn()
+        row = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?", (uid,)).fetchone()
         c.close()
         if not row: return False
         return datetime.strptime(row["expires_at"], "%Y-%m-%d %H:%M:%S") > datetime.now()
@@ -231,38 +308,50 @@ async def is_subscribed(uid) -> bool:
 
 async def get_subscription(uid):
     def _f():
-        c = _conn(); row = c.execute("SELECT * FROM subscriptions WHERE user_id=?", (uid,)).fetchone()
-        c.close(); return dict(row) if row else None
+        c = _conn()
+        row = c.execute("SELECT * FROM subscriptions WHERE user_id=?", (uid,)).fetchone()
+        c.close()
+        return dict(row) if row else None
     return await _run(_f)
 
 async def get_all_subscriptions():
     def _f():
         c = _conn()
-        rows = c.execute("""SELECT s.*,u.username,u.first_name FROM subscriptions s
-            LEFT JOIN users u ON u.user_id=s.user_id ORDER BY s.expires_at DESC""").fetchall()
-        c.close(); return [dict(r) for r in rows]
+        rows = c.execute("""SELECT s.*, u.username, u.first_name FROM subscriptions s
+            LEFT JOIN users u ON u.user_id=s.user_id
+            ORDER BY s.expires_at DESC""").fetchall()
+        c.close()
+        return [dict(r) for r in rows]
     return await _run(_f)
 
 async def has_used_trial(uid) -> bool:
     def _f():
-        c = _conn(); row = c.execute("SELECT 1 FROM trial_used WHERE user_id=?", (uid,)).fetchone()
-        c.close(); return row is not None
+        c = _conn()
+        row = c.execute("SELECT 1 FROM trial_used WHERE user_id=?", (uid,)).fetchone()
+        c.close()
+        return row is not None
     return await _run(_f)
 
 async def mark_trial_used(uid):
     def _f():
-        c = _conn(); c.execute("INSERT OR IGNORE INTO trial_used (user_id) VALUES (?)", (uid,))
+        c = _conn()
+        c.execute("INSERT OR IGNORE INTO trial_used (user_id) VALUES (?)", (uid,))
         c.commit(); c.close()
     await _run(_f)
 
+# ── Кэш сообщений ──
+
 async def cache_message(chat_id, message_id, user_id, username, first_name,
-                        text=None, media_type=None, file_id=None, owner_id=None):
+                        text=None, media_type=None, file_id=None,
+                        owner_id=None, is_view_once=False):
     def _f():
         c = _conn()
         c.execute("""INSERT OR REPLACE INTO message_cache
-            (chat_id,message_id,owner_id,user_id,username,first_name,text,media_type,file_id)
-            VALUES (?,?,?,?,?,?,?,?,?)""",
-            (chat_id,message_id,owner_id,user_id,username,first_name,text,media_type,file_id))
+            (chat_id, message_id, owner_id, user_id, username, first_name,
+             text, media_type, file_id, is_view_once)
+            VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (chat_id, message_id, owner_id, user_id, username, first_name,
+             text, media_type, file_id, int(is_view_once)))
         c.commit(); c.close()
     await _run(_f)
 
@@ -270,30 +359,36 @@ async def get_cached_message(chat_id, message_id):
     def _f():
         c = _conn()
         row = c.execute("SELECT * FROM message_cache WHERE chat_id=? AND message_id=?",
-                        (chat_id,message_id)).fetchone()
-        c.close(); return dict(row) if row else None
+                        (chat_id, message_id)).fetchone()
+        c.close()
+        return dict(row) if row else None
     return await _run(_f)
 
 async def delete_cached_message(chat_id, message_id):
     def _f():
         c = _conn()
-        c.execute("DELETE FROM message_cache WHERE chat_id=? AND message_id=?", (chat_id,message_id))
+        c.execute("DELETE FROM message_cache WHERE chat_id=? AND message_id=?",
+                  (chat_id, message_id))
         c.commit(); c.close()
     await _run(_f)
+
+# ── Настройки пользователя ──
 
 async def get_user_settings(uid) -> dict:
     def _f():
         c = _conn()
-        c.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (uid,)); c.commit()
+        c.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (uid,))
+        c.commit()
         row = c.execute("SELECT * FROM user_settings WHERE user_id=?", (uid,)).fetchone()
-        c.close(); return dict(row)
+        c.close()
+        return dict(row)
     return await _run(_f)
 
 async def toggle_user_setting(uid, field):
     if field not in {"notify_delete","notify_edit","notify_self_destruct"}: return
     def _f():
         c = _conn()
-        c.execute(f"""INSERT INTO user_settings (user_id,{field}) VALUES (?,1)
+        c.execute(f"""INSERT INTO user_settings (user_id, {field}) VALUES (?, 1)
             ON CONFLICT(user_id) DO UPDATE SET {field}=1-{field}""", (uid,))
         c.commit(); c.close()
     await _run(_f)
@@ -320,15 +415,22 @@ def trim(t, n=400):
     return (t[:n] + "…") if len(t) > n else t
 
 def extract_media(msg: Message):
-    if msg.photo:           return "фото",       msg.photo[-1].file_id
-    if msg.video:           return "видео",       msg.video.file_id
-    if msg.video_note:      return "видеосообщение", msg.video_note.file_id
-    if msg.voice:           return "голосовое",   msg.voice.file_id
-    if msg.audio:           return "аудио",       msg.audio.file_id
-    if msg.document:        return "документ",    msg.document.file_id
-    if msg.sticker:         return "стикер",      msg.sticker.file_id
-    if msg.animation:       return "анимация",    msg.animation.file_id
+    if msg.photo:      return "фото",           msg.photo[-1].file_id
+    if msg.video:      return "видео",           msg.video.file_id
+    if msg.video_note: return "видеосообщение",  msg.video_note.file_id
+    if msg.voice:      return "голосовое",       msg.voice.file_id
+    if msg.audio:      return "аудио",           msg.audio.file_id
+    if msg.document:   return "документ",        msg.document.file_id
+    if msg.sticker:    return "стикер",          msg.sticker.file_id
+    if msg.animation:  return "анимация",        msg.animation.file_id
     return None, None
+
+def is_view_once_msg(msg: Message) -> bool:
+    if getattr(msg, "has_media_spoiler", False): return True
+    if msg.photo and getattr(msg.photo[-1], "has_media_spoiler", False): return True
+    if msg.video and getattr(msg.video, "has_media_spoiler", False): return True
+    if msg.video_note and getattr(msg.video_note, "has_media_spoiler", False): return True
+    return False
 
 MEDIA_EMOJI = {
     "фото": "🖼", "видео": "🎬", "видеосообщение": "⭕",
@@ -343,11 +445,12 @@ async def notify_admins(bot: Bot, text: str, **kwargs):
 
 async def safe_edit(call: CallbackQuery, text: str, **kwargs):
     try:
-        await call.message.edit_text(text, **kwargs)
+        await call.message.edit_text(text, parse_mode="HTML", **kwargs)
     except Exception:
         try: await call.message.delete()
         except: pass
-        await call.message.answer(text, **kwargs)
+        try: await call.message.answer(text, parse_mode="HTML", **kwargs)
+        except: pass
 
 # ══════════════════════════════════════════════
 # КЛАВИАТУРЫ
@@ -356,47 +459,97 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
 def reply_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="💳 Тарифы"),     KeyboardButton(text="📋 Подписка")],
-            [KeyboardButton(text="⚙️ Настройки"),  KeyboardButton(text="❓ Помощь")],
+            [KeyboardButton(text="🏠 Главное меню"), KeyboardButton(text="💳 Тарифы")],
+            [KeyboardButton(text="📋 Подписка"),     KeyboardButton(text="⚙️ Настройки")],
+            [KeyboardButton(text="❓ Инструкция")],
         ],
         resize_keyboard=True, persistent=True
     )
 
+def start_kb():
+    """Клавиатура для /start — кнопки Подключить и Инструкция"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="⚡️ Подключить бота",
+            url="https://t.me/settings/business/chatbots"
+        )],
+        [InlineKeyboardButton(text="📖 Инструкция", callback_data="u:help")],
+        [InlineKeyboardButton(text="💳 Тарифы",     callback_data="u:plans")],
+    ])
+
 def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Тарифы",       callback_data="u:plans"),
-         InlineKeyboardButton(text="📋 Подписка",      callback_data="u:sub")],
-        [InlineKeyboardButton(text="⚙️ Настройки",    callback_data="u:settings"),
-         InlineKeyboardButton(text="❓ Помощь",        callback_data="u:help")],
+        [InlineKeyboardButton(text="💳 Тарифы",    callback_data="u:plans"),
+         InlineKeyboardButton(text="📋 Подписка",  callback_data="u:sub")],
+        [InlineKeyboardButton(text="⚙️ Настройки", callback_data="u:settings"),
+         InlineKeyboardButton(text="📖 Инструкция",callback_data="u:help")],
+        [InlineKeyboardButton(text="⚡️ Подключить бота",
+                              url="https://t.me/settings/business/chatbots")],
     ])
 
 def back_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="u:main")]
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
     ])
 
-def plans_kb(trial_ok: bool):
-    rows = []
-    if trial_ok:
-        rows.append([InlineKeyboardButton(text="🎁 Пробный период · 7 дней БЕСПЛАТНО", callback_data="plan:trial")])
-    rows.append([InlineKeyboardButton(text="📅 1 месяц · 35 ⭐",           callback_data="plan:month")])
-    rows.append([InlineKeyboardButton(text="📦 3 месяца · 89 ⭐  −15%",    callback_data="plan:three")])
-    rows.append([InlineKeyboardButton(text="👑 1 год · 299 ⭐  −29%",      callback_data="plan:year")])
-    rows.append([InlineKeyboardButton(text="◀️ Назад",                     callback_data="u:main")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+def plans_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 1 месяц · 35 ⭐",        callback_data="plan:month")],
+        [InlineKeyboardButton(text="📦 3 месяца · 89 ⭐  −15%", callback_data="plan:three")],
+        [InlineKeyboardButton(text="👑 1 год · 299 ⭐  −29%",   callback_data="plan:year")],
+        [InlineKeyboardButton(text="🏠 Главное меню",           callback_data="u:main")],
+    ])
 
 def admin_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👥 Пользователи",  callback_data="adm:users")],
-        [InlineKeyboardButton(text="⭐ Подписки",       callback_data="adm:subs")],
-        [InlineKeyboardButton(text="✅ Выдать",         callback_data="adm:grant"),
-         InlineKeyboardButton(text="❌ Отозвать",       callback_data="adm:revoke")],
-        [InlineKeyboardButton(text="📊 Статистика",     callback_data="adm:stats")],
+        [InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users")],
+        [InlineKeyboardButton(text="⭐ Подписки",      callback_data="adm:subs")],
+        [InlineKeyboardButton(text="✅ Выдать",        callback_data="adm:grant"),
+         InlineKeyboardButton(text="❌ Отозвать",      callback_data="adm:revoke")],
+        [InlineKeyboardButton(text="🎯 Таргеты",       callback_data="adm:targets")],
+        [InlineKeyboardButton(text="📊 Статистика",    callback_data="adm:stats")],
     ])
 
 def adm_back_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
+    ])
+
+def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
+    rows = []
+    for t in targets:
+        name  = t.get("first_name") or "—"
+        uname = f" @{t['username']}" if t.get("username") else ""
+        rows.append([InlineKeyboardButton(
+            text=f"🎯 {name}{uname}",
+            callback_data=f"tgt:view:{t['target_user_id']}"
+        )])
+    rows.append([InlineKeyboardButton(text="➕ Добавить таргет", callback_data="tgt:add")])
+    rows.append([InlineKeyboardButton(text="◀️ Назад",           callback_data="adm:back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
+    uid = t["target_user_id"]
+    def icon(val): return "✅" if val else "❌"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_messages',1))} Сообщения",
+            callback_data=f"tgt:toggle:{uid}:notify_messages"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_deleted',1))} Удалённые",
+            callback_data=f"tgt:toggle:{uid}:notify_deleted"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_edited',1))} Редактирования",
+            callback_data=f"tgt:toggle:{uid}:notify_edited"
+        )],
+        [InlineKeyboardButton(
+            text=f"{icon(t.get('notify_viewonce',1))} Исчезающие медиа",
+            callback_data=f"tgt:toggle:{uid}:notify_viewonce"
+        )],
+        [InlineKeyboardButton(text="🗑 Удалить таргет", callback_data=f"tgt:del:{uid}")],
+        [InlineKeyboardButton(text="◀️ К списку",       callback_data="adm:targets")],
     ])
 
 # ══════════════════════════════════════════════
@@ -405,54 +558,95 @@ def adm_back_kb():
 
 async def start_text(uid: int, first_name: str) -> str:
     if is_admin(uid):
-        status = f"👑 Администратор — безлимитный доступ"
+        status_line = "👑 Администратор — безлимитный доступ"
     elif await is_subscribed(uid):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        status = f"✅ Подписка активна · осталось {days_left} дн."
+        status_line = f"✅ Подписка активна · осталось {days_left} дн."
     else:
-        status = f"❌ Подписка не активна"
+        status_line = "❌ Подписка не активна"
+
     return (
-        f"👁 <b>ShadowWatch</b>\n\n"
+        f"👁 <b>ShadowSMSq</b> — твой невидимый помощник\n\n"
         f"Привет, {first_name}! 👋\n\n"
-        f"<b>Статус:</b> {status}\n\n"
-        f"🗑 Удалённые сообщения\n"
-        f"✏️ Редактирования\n"
-        f"💣 Исчезающие медиа\n\n"
-        f"<i>Выбери действие 👇</i>"
+        f"<b>Что умеет бот:</b>\n"
+        f"🗑 Перехватывает <b>удалённые</b> сообщения\n"
+        f"✏️ Показывает <b>что было изменено</b>\n"
+        f"💣 Сохраняет <b>исчезающие медиа</b>\n"
+        f"🎯 <b>Слежка</b> за конкретными людьми\n\n"
+        f"<b>Статус:</b> {status_line}\n\n"
+        f"<i>Нажми «⚡️ Подключить бота» чтобы начать 👇</i>"
     )
 
-# ══════════════════════════════════════════════
-# ИСПРАВЛЕНИЕ #2: Убираем DeleteMiddleware полностью
-# (дублировала обработку deleted_business_messages с роутером)
-# Middleware теперь ничего не делает с удалёнными — только пропускает дальше
-# ══════════════════════════════════════════════
+HELP_TEXT = (
+    f"📖 <b>Инструкция по использованию</b>\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"⚡️ <b>Шаг 1 — Подключение</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Нажми кнопку <b>«⚡️ Подключить бота»</b> ниже\n"
+    f"или вручную:\n"
+    f"📱 Настройки → <b>Автоматизация чатов</b>\n"
+    f"→ Добавить бота → <code>@{BOT_USERNAME}</code>\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🗑 <b>Удалённые сообщения</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Как только кто-то удалит сообщение в твоих чатах — "
+    f"бот моментально пришлёт тебе его копию с именем автора.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"✏️ <b>Редактирования</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Бот покажет что <b>было</b> и что <b>стало</b> — "
+    f"ничего не скроется.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💣 <b>Исчезающие медиа</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Фото и видео «просмотреть один раз» — "
+    f"бот перехватит и сохранит их до того как они исчезнут.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🎯 <b>Таргет (слежка)</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"Добавь человека в таргет — и все его сообщения "
+    f"будут зеркалироваться тебе в реальном времени.\n"
+    f"Настрой что именно приходит: текст, удалённые, "
+    f"редактирования, исчезающие медиа.\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"⚙️ <b>Настройки</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"В разделе Настройки можно включить или выключить "
+    f"каждый тип уведомлений по отдельности.\n\n"
+    f"<i>ℹ️ Telegram Premium не требуется — "
+    f"автоматизация доступна всем пользователям</i>"
+)
 
-# (DeleteMiddleware удалена — была причиной двойных уведомлений)
-
 # ══════════════════════════════════════════════
-# ОТПРАВКА УВЕДОМЛЕНИЙ
+# УВЕДОМЛЕНИЯ
 # ══════════════════════════════════════════════
 
 async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
-    """Отправляет уведомление об удалённом сообщении владельцу аккаунта"""
     author_uid = cached.get("user_id")
     fname      = cached.get("first_name") or "Неизвестно"
     uname      = cached.get("username")
     text       = cached.get("text")
     mtype      = cached.get("media_type")
     fid        = cached.get("file_id")
-    # owner_id — кому шлём уведомление
     notify_to  = owner_id or cached.get("owner_id") or None
-    if not notify_to:
-        logger.warning(f"_send_deleted_notify: owner_id не найден для cached={cached}")
+    is_tgt     = is_target(author_uid) if author_uid else False
+
+    recipients = []
+    if is_tgt:
+        recipients = ADMIN_IDS[:]
+    elif notify_to:
+        recipients = [notify_to]
+    else:
+        logger.warning(f"_send_deleted_notify: owner_id не найден, cached={cached}")
         return
+
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
     sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
     caption = (
-        f"🗑 <b>Удалённое сообщение</b>\n\n"
+        f"{'🎯 TARGET · ' if is_tgt else ''}🗑 <b>Удалённое сообщение</b>\n\n"
         f"📅 <b>{now_str}</b>\n"
         f"👤 <b>Автор:</b> {sender}\n"
         + (f"\n💬 <b>Текст:</b>\n{trim(text)}\n" if text else "")
@@ -460,29 +654,194 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         + f"\n🤖 @{BOT_USERNAME}"
     )
 
-    if not await should_notify(notify_to, "notify_delete"): return
-    try:
-        if fid and mtype:
-            send = {
-                "фото":           bot.send_photo,
-                "видео":          bot.send_video,
-                "видеосообщение": bot.send_video_note,
-                "голосовое":      bot.send_voice,
-                "аудио":          bot.send_audio,
-                "документ":       bot.send_document,
-            }.get(mtype)
-            if send:
-                if mtype == "видеосообщение":
-                    await send(notify_to, fid)
-                    await bot.send_message(notify_to, caption, parse_mode="HTML")
+    no_sub_notice = (
+        f"👁 <b>Сообщение было удалено</b>\n\n"
+        f"📅 {now_str}\n"
+        f"👤 Автор: {sender}\n\n"
+        f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+        f"💳 Оформи подписку: /start → Тарифы\n"
+        f"🤖 @{BOT_USERNAME}"
+    )
+
+    async def _deliver(to: int):
+        try:
+            if fid and mtype:
+                send_fn = {
+                    "фото":           bot.send_photo,
+                    "видео":          bot.send_video,
+                    "видеосообщение": bot.send_video_note,
+                    "голосовое":      bot.send_voice,
+                    "аудио":          bot.send_audio,
+                    "документ":       bot.send_document,
+                }.get(mtype)
+                if send_fn:
+                    if mtype == "видеосообщение":
+                        await send_fn(to, fid)
+                        await bot.send_message(to, caption, parse_mode="HTML")
+                    else:
+                        await send_fn(to, fid, caption=caption, parse_mode="HTML")
                 else:
-                    await send(notify_to, fid, caption=caption, parse_mode="HTML")
+                    await bot.send_message(to, caption, parse_mode="HTML")
             else:
-                await bot.send_message(notify_to, caption, parse_mode="HTML")
+                await bot.send_message(to, caption, parse_mode="HTML")
+        except Exception as ex:
+            logger.warning(f"deleted notify {to}: {ex}")
+
+    for r in recipients:
+        if is_tgt:
+            t_settings = await get_target_settings(author_uid)
+            if t_settings.get("notify_deleted", 1):
+                await _deliver(r)
         else:
-            await bot.send_message(notify_to, caption, parse_mode="HTML")
-    except Exception as ex:
-        logger.warning(f"deleted notify {notify_to}: {ex}")
+            # Проверяем подписку — если нет, шлём уведомление о необходимости подписки
+            if is_admin(r):
+                await _deliver(r)
+            elif await is_subscribed(r):
+                s = await get_user_settings(r)
+                if s.get("notify_delete", 1):
+                    await _deliver(r)
+            else:
+                # Бот в автоматизации, но подписки нет — шлём заглушку
+                try:
+                    await bot.send_message(r, no_sub_notice, parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
+                        ]))
+                except Exception as ex:
+                    logger.warning(f"no_sub notice {r}: {ex}")
+
+
+async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool = False):
+    if is_tgt:
+        for admin_id in ADMIN_IDS:
+            try: await bot.send_message(admin_id, notify_text, parse_mode="HTML")
+            except Exception as ex: logger.warning(f"target edit notify {admin_id}: {ex}")
+    elif is_admin(uid):
+        try: await bot.send_message(uid, notify_text, parse_mode="HTML")
+        except: pass
+    elif await is_subscribed(uid):
+        s = await get_user_settings(uid)
+        if s.get("notify_edit", 1):
+            try: await bot.send_message(uid, notify_text, parse_mode="HTML")
+            except: pass
+    else:
+        now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+        no_sub = (
+            f"✏️ <b>Сообщение было изменено</b>\n\n"
+            f"📅 {now_str}\n\n"
+            f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+            f"💳 Оформи подписку: /start → Тарифы\n"
+            f"🤖 @{BOT_USERNAME}"
+        )
+        try:
+            await bot.send_message(uid, no_sub, parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
+                ]))
+        except: pass
+
+
+async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: str, fid: str):
+    u = msg.from_user
+    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    caption = (
+        f"💣 <b>Исчезающее медиа перехвачено!</b>\n\n"
+        f"📅 <b>{now_str}</b>\n"
+        f"👤 <b>Отправитель:</b> {user_link(u.id, u.first_name, u.username)}\n"
+        f"{MEDIA_EMOJI.get(mtype,'📎')} <b>Тип:</b> {mtype}\n\n"
+        f"🤖 @{BOT_USERNAME}"
+    )
+    if is_target(u.id):
+        t_settings = await get_target_settings(u.id)
+        if not t_settings.get("notify_viewonce", 1): return
+        recipients = ADMIN_IDS[:]
+    elif is_admin(owner_id):
+        recipients = [owner_id]
+    elif await is_subscribed(owner_id):
+        s = await get_user_settings(owner_id)
+        if not s.get("notify_self_destruct", 1): return
+        recipients = [owner_id]
+    else:
+        try:
+            await bot.send_message(owner_id,
+                f"💣 <b>Тебе отправили исчезающее медиа</b>\n\n"
+                f"🔒 <b>Для просмотра нужна подписка.</b>\n\n"
+                f"💳 /start → Тарифы\n🤖 @{BOT_USERNAME}",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
+                ]))
+        except: pass
+        return
+
+    for r in recipients:
+        try:
+            send_fn = {"фото": bot.send_photo, "видео": bot.send_video}.get(mtype)
+            if send_fn:
+                await send_fn(r, fid, caption=caption, parse_mode="HTML")
+            else:
+                await bot.send_message(r, caption, parse_mode="HTML")
+        except Exception as ex:
+            logger.warning(f"view_once notify {r}: {ex}")
+
+
+async def _mirror_to_admins(bot: Bot, msg: Message):
+    if not msg.from_user: return
+    if not is_target(msg.from_user.id): return
+
+    t_settings = await get_target_settings(msg.from_user.id)
+    if not t_settings.get("notify_messages", 1): return
+
+    u = msg.from_user
+    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+
+    bc_id = getattr(msg, "business_connection_id", None)
+    if msg.chat.type == "private":
+        if bc_id:
+            recipient = f"в чат: {msg.chat.title or msg.chat.first_name or str(msg.chat.id)}"
+        else:
+            recipient = f"боту @{BOT_USERNAME}"
+    else:
+        recipient = f"в группу «{msg.chat.title or str(msg.chat.id)}»"
+
+    mtype, fid = extract_media(msg)
+    text = msg.text or msg.caption
+
+    header = (
+        f"🎯 <b>TARGET · {user_link(u.id, u.first_name, u.username)}</b>\n"
+        f"📅 {now_str}\n"
+        f"📨 Кому: <b>{recipient}</b>\n"
+        f"─────────────────────\n"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            if fid and mtype:
+                send_fn = {
+                    "фото":           bot.send_photo,
+                    "видео":          bot.send_video,
+                    "видеосообщение": bot.send_video_note,
+                    "голосовое":      bot.send_voice,
+                    "аудио":          bot.send_audio,
+                    "документ":       bot.send_document,
+                    "стикер":         bot.send_sticker,
+                    "анимация":       bot.send_animation,
+                }.get(mtype)
+                if send_fn:
+                    if mtype in ("видеосообщение", "стикер"):
+                        await send_fn(admin_id, fid)
+                        await bot.send_message(admin_id, header, parse_mode="HTML")
+                    else:
+                        cap = header + (f"\n{trim(text)}" if text else "")
+                        await send_fn(admin_id, fid, caption=cap, parse_mode="HTML")
+                else:
+                    await bot.send_message(admin_id,
+                        header + (trim(text) if text else ""), parse_mode="HTML")
+            else:
+                await bot.send_message(admin_id,
+                    header + (trim(text) if text else "<i>пусто</i>"), parse_mode="HTML")
+        except Exception as ex:
+            logger.warning(f"mirror to admin {admin_id}: {ex}")
 
 # ══════════════════════════════════════════════
 # РОУТЕРЫ
@@ -494,9 +853,10 @@ event_router   = Router()
 payment_router = Router()
 
 class AdminStates(StatesGroup):
-    waiting_user_id = State()
-    waiting_days    = State()
-    waiting_revoke  = State()
+    waiting_user_id   = State()
+    waiting_days      = State()
+    waiting_revoke    = State()
+    waiting_target_id = State()
 
 # ══════════════════════════════════════════════
 # СОБЫТИЯ — кэширование и отслеживание
@@ -507,25 +867,39 @@ async def _do_cache(msg: Message, owner_id: int = None):
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
     mtype, fid = extract_media(msg)
-    await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
-                        msg.text or msg.caption, mtype, fid, owner_id=owner_id)
+    view_once = is_view_once_msg(msg)
+    await cache_message(
+        msg.chat.id, msg.message_id,
+        u.id, u.username, u.first_name,
+        msg.text or msg.caption, mtype, fid,
+        owner_id=owner_id, is_view_once=view_once
+    )
 
 @event_router.message()
 async def on_message(msg: Message, bot: Bot):
-    await _do_cache(msg)
+    # Пропускаем business — обрабатываются в on_biz_message
+    if getattr(msg, "business_connection_id", None):
+        return
+    owner_id = ADMIN_IDS[0] if (msg.from_user and is_target(msg.from_user.id) and ADMIN_IDS) else None
+    await _do_cache(msg, owner_id=owner_id)
+    await _mirror_to_admins(bot, msg)
 
 @event_router.edited_message()
 async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
+    if owner_id is None and getattr(msg, "business_connection_id", None):
+        return
     if not msg.from_user or msg.from_user.is_bot: return
     u = msg.from_user
     cached   = await get_cached_message(msg.chat.id, msg.message_id)
     old_text = cached.get("text") if cached else None
     new_text = msg.text or msg.caption
+    is_tgt   = is_target(u.id)
     notify_to = owner_id or (cached.get("owner_id") if cached else None)
-    if old_text != new_text and notify_to:
+
+    if old_text != new_text:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
-        notify  = (
-            f"✏️ <b>Изменённое сообщение</b>\n\n"
+        notify_text = (
+            f"{'🎯 TARGET · ' if is_tgt else ''}✏️ <b>Изменённое сообщение</b>\n\n"
             f"📅 <b>{now_str}</b>\n"
             f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
             f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
@@ -533,21 +907,33 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
             f"📝 <b>Стало:</b>\n{trim(new_text)}\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
-        if await should_notify(notify_to, "notify_edit"):
-            try: await bot.send_message(notify_to, notify, parse_mode="HTML")
-            except Exception as ex: logger.warning(f"edit notify {notify_to}: {ex}")
+        if is_tgt:
+            t_settings = await get_target_settings(u.id)
+            if t_settings.get("notify_edited", 1):
+                await _send_edited_notify(bot, u.id, notify_text, is_tgt=True)
+        elif notify_to:
+            await _send_edited_notify(bot, notify_to, notify_text, is_tgt=False)
+
     mtype, fid = extract_media(msg)
+    effective_owner = notify_to or (ADMIN_IDS[0] if is_tgt and ADMIN_IDS else None)
     await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
-                        new_text, mtype, fid, owner_id=notify_to)
+                        new_text, mtype, fid, owner_id=effective_owner)
 
 # ── Business API ──
 
 @event_router.business_message()
 async def on_biz_message(msg: Message, bot: Bot):
     bc_id    = getattr(msg, "business_connection_id", None)
-    # resolve_biz_owner — обращается к Telegram API если нет в кэше (после перезапуска)
     owner_id = await resolve_biz_owner(bc_id, bot)
+
+    if is_view_once_msg(msg) and owner_id:
+        mtype, fid = extract_media(msg)
+        if fid and mtype:
+            await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
+
     await _do_cache(msg, owner_id=owner_id)
+    # Зеркалирование таргетов только через бизнес (без дублей)
+    await _mirror_to_admins(bot, msg)
 
 @event_router.edited_business_message()
 async def on_biz_edit(msg: Message, bot: Bot):
@@ -555,18 +941,15 @@ async def on_biz_edit(msg: Message, bot: Bot):
     owner_id = await resolve_biz_owner(bc_id, bot)
     await on_edit(msg, bot, owner_id=owner_id)
 
-# Обработка удалений ТОЛЬКО ЗДЕСЬ (не в middleware)
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
     if not chat_id: return
     bc_id    = getattr(event, "business_connection_id", None)
-    # resolve_biz_owner автоматически восстанавливает связь через API если её нет в кэше
     owner_id = await resolve_biz_owner(bc_id, bot)
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         if not cached: continue
-        # owner_id из resolve (из БД/API) приоритетнее owner_id из кэша сообщения
         effective_owner = owner_id or cached.get("owner_id")
         await _send_deleted_notify(bot, cached, owner_id=effective_owner)
         await delete_cached_message(chat_id, mid)
@@ -576,28 +959,27 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     uid = bc.user.id
     await upsert_user(uid, bc.user.username, bc.user.first_name)
 
-    # ИСПРАВЛЕНИЕ #1: Сохраняем подключение в БД (переживает перезапуск)
     if hasattr(bc, "id") and bc.id:
         if bc.is_enabled:
             await save_biz_connection(bc.id, uid)
-            logger.info(f"Business подключение сохранено: {bc.id} -> {uid}")
         else:
             await remove_biz_connection(bc.id)
-            logger.info(f"Business подключение удалено: {bc.id}")
 
     if not bc.is_enabled:
         try:
-            await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
             await bot.send_message(uid,
-                f"👁 <b>ShadowWatch отключён</b>\n\n"
+                f"👁 <b>{BOT_NAME} отключён</b>\n\n"
                 f"Ты отключил бота от своего аккаунта.\n"
-                f"Чтобы снова включить — добавь бота в Автоматизацию чатов:\n\n"
-                f"<code>{BOT_USERNAME}</code>\n\n"
-                f"🤖 @{BOT_USERNAME}",
-                parse_mode="HTML")
+                f"Чтобы снова включить — нажми кнопку ниже 👇",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⚡️ Подключить снова",
+                                         url="https://t.me/settings/business/chatbots")]
+                ]))
         except: pass
         return
 
+    # Автоматически выдаём пробный период при первом подключении
     trial_activated = False
     if not await has_used_trial(uid) and not is_admin(uid) and not await is_subscribed(uid):
         await mark_trial_used(uid)
@@ -612,48 +994,50 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if trial_activated:
         text = (
-            f"👁 <b>ShadowWatch подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}! 🎉\n\n"
+            f"🎉 <b>{BOT_NAME} подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}!\n\n"
             f"🎁 <b>Пробный период активирован — 7 дней бесплатно!</b>\n"
             f"📅 Действует до: <b>{exp_str}</b>\n\n"
+            f"Теперь бот следит за твоими чатами:\n"
             f"🗑 Удалённые сообщения\n"
             f"✏️ Редактирования\n"
             f"💣 Исчезающие медиа\n\n"
-            f"<i>Используй меню ниже 👇</i>\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
-            f"👁 <b>ShadowWatch подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}! ✅\n\n"
-            f"Бот успешно подключён к твоему аккаунту.\n\n"
-            f"🗑 Удалённые сообщения\n"
-            f"✏️ Редактирования\n"
-            f"💣 Исчезающие медиа\n\n"
+            f"✅ <b>{BOT_NAME} подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}!\n\n"
+            f"Бот снова следит за твоими чатами.\n\n"
+            f"🗑 Удалённые · ✏️ Редактирования · 💣 Медиа\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
     else:
         text = (
-            f"👁 <b>ShadowWatch подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}! 👋\n\n"
+            f"👁 <b>{BOT_NAME} подключён!</b>\n\n"
+            f"Привет, {bc.user.first_name}!\n\n"
             f"Для работы нужна подписка.\n\n"
-            f"💳 Оформи подписку:\n"
             f"📅 1 месяц · 35 ⭐\n"
             f"📦 3 месяца · 89 ⭐\n"
             f"👑 1 год · 299 ⭐\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
+
     try:
-        await bot.send_message(uid, "👁 ShadowWatch", reply_markup=reply_kb())
-        await bot.send_message(uid, text, parse_mode="HTML", reply_markup=main_kb())
-    except Exception as ex: logger.warning(f"biz connect notify {uid}: {ex}")
+        await bot.send_message(uid, text, parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
+                [InlineKeyboardButton(text="🏠 Меню",   callback_data="u:main")],
+            ]))
+    except Exception as ex:
+        logger.warning(f"biz connect notify {uid}: {ex}")
 
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(admin_id,
-                f"🔗 <b>Новое Business подключение!</b>\n\n"
+                f"🔗 <b>Новое подключение!</b>\n\n"
                 f"👤 {user_link(uid, bc.user.first_name, bc.user.username)}\n"
-                f"{'🎁 Активирован пробный период' if trial_activated else '✅ Подписан'}",
+                f"{'🎁 Выдан пробный период 7 дней' if trial_activated else '✅ Подписан'}",
                 parse_mode="HTML")
         except: pass
 
@@ -667,16 +1051,20 @@ async def cmd_start(msg: Message, state: FSMContext):
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
     text = await start_text(u.id, u.first_name)
-    await msg.answer("👁", reply_markup=reply_kb())
-    await msg.answer(text, reply_markup=main_kb())
+    await msg.answer(text, reply_markup=start_kb())
 
+@user_router.message(F.text == "🏠 Главное меню")
 @user_router.callback_query(F.data == "u:main")
-async def cb_main(call: CallbackQuery, state: FSMContext):
-    await state.clear()
-    u = call.from_user
+async def cb_main(event, state: FSMContext = None):
+    is_call = isinstance(event, CallbackQuery)
+    if state: await state.clear()
+    u = event.from_user
     text = await start_text(u.id, u.first_name)
-    await safe_edit(call, text, reply_markup=main_kb())
-    await call.answer()
+    if is_call:
+        await safe_edit(event, text, reply_markup=main_kb())
+        await event.answer()
+    else:
+        await event.answer(text, reply_markup=main_kb())
 
 # ── Тарифы ──
 
@@ -685,29 +1073,25 @@ async def cb_main(call: CallbackQuery, state: FSMContext):
 async def show_plans(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
-    trial_ok   = not await has_used_trial(uid) and not is_admin(uid)
     subscribed = await is_subscribed(uid)
-    sub_info   = ""
+    sub_info = ""
     if subscribed:
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
         sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
-    trial_note = "\n<i>Пробный период уже использован</i>" if not trial_ok and not is_admin(uid) else ""
     text = (
-        f"👑 <b>Тарифы ShadowWatch</b>{sub_info}\n\n"
-        + (f"🎁 <b>Пробный период</b> · 7 дней бесплатно\n\n" if trial_ok else "")
-        + f"📅 <b>1 месяц</b> · 35 ⭐\n"
-        + f"📦 <b>3 месяца</b> · 89 ⭐  <i>скидка 15%</i>\n"
-        + f"👑 <b>1 год</b> · 299 ⭐  <i>скидка 29%</i>"
-        + trial_note
-        + f"\n\n<i>🔒 Оплата через Telegram Stars — мгновенно и безопасно</i>"
+        f"💳 <b>Тарифы {BOT_NAME}</b>{sub_info}\n\n"
+        f"📅 <b>1 месяц</b> · 35 ⭐\n"
+        f"📦 <b>3 месяца</b> · 89 ⭐  <i>скидка 15%</i>\n"
+        f"👑 <b>1 год</b> · 299 ⭐  <i>скидка 29%</i>\n\n"
+        f"<i>🔒 Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
-        await safe_edit(event, text, reply_markup=plans_kb(trial_ok))
+        await safe_edit(event, text, reply_markup=plans_kb())
         await event.answer()
     else:
-        await event.answer(text, reply_markup=plans_kb(trial_ok))
+        await event.answer(text, reply_markup=plans_kb())
 
 # ── Подписка ──
 
@@ -717,11 +1101,14 @@ async def show_sub(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
     if is_admin(uid):
-        text = f"👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям"
+        text = "👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
     else:
         sub = await get_subscription(uid)
         if not sub:
-            text = f"❌ <b>Подписка не активна</b>\n\nОформи подписку чтобы начать использовать ShadowWatch."
+            text = (
+                f"❌ <b>Подписка не активна</b>\n\n"
+                f"Оформи подписку чтобы начать использовать {BOT_NAME}."
+            )
         else:
             exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
             now = datetime.now()
@@ -740,7 +1127,7 @@ async def show_sub(event, state: FSMContext = None):
                 )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Купить / Продлить", callback_data="u:plans")],
-        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="u:main")],
+        [InlineKeyboardButton(text="🏠 Главное меню",      callback_data="u:main")],
     ])
     if is_call:
         await safe_edit(event, text, reply_markup=kb)
@@ -758,10 +1145,16 @@ async def show_settings(event, state: FSMContext = None):
     s = await get_user_settings(uid)
     def ico(v): return "🟢" if v else "🔴"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{ico(s['notify_delete'])} Удалённые сообщения",     callback_data="toggle:notify_delete")],
-        [InlineKeyboardButton(text=f"{ico(s['notify_edit'])} Редактирования",            callback_data="toggle:notify_edit")],
-        [InlineKeyboardButton(text=f"{ico(s['notify_self_destruct'])} Исчезающие медиа", callback_data="toggle:notify_self_destruct")],
-        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="u:main")],
+        [InlineKeyboardButton(
+            text=f"{ico(s['notify_delete'])} Удалённые сообщения",
+            callback_data="toggle:notify_delete")],
+        [InlineKeyboardButton(
+            text=f"{ico(s['notify_edit'])} Редактирования",
+            callback_data="toggle:notify_edit")],
+        [InlineKeyboardButton(
+            text=f"{ico(s['notify_self_destruct'])} Исчезающие медиа",
+            callback_data="toggle:notify_self_destruct")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     text = (
         f"⚙️ <b>Настройки уведомлений</b>\n\n"
@@ -780,35 +1173,19 @@ async def show_settings(event, state: FSMContext = None):
 async def cb_toggle(call: CallbackQuery):
     if not (await is_subscribed(call.from_user.id) or is_admin(call.from_user.id)):
         return await call.answer("❌ Нужна активная подписка!", show_alert=True)
-    await toggle_user_setting(call.from_user.id, call.data.split(":",1)[1])
+    await toggle_user_setting(call.from_user.id, call.data.split(":", 1)[1])
     await show_settings(call)
 
-# ── Помощь ──
-# ИСПРАВЛЕНИЕ #3: Убрано упоминание о платной Telegram Business подписке
-
-HELP_TEXT = (
-    f"👁 <b>Как подключить ShadowWatch</b>\n\n"
-    f"<b>Шаг 1.</b> Открой настройки профиля:\n"
-    f"📱 <b>iOS:</b> Профиль → Изменить профиль\n"
-    f"📱 <b>Android:</b> Настройки → Аккаунт\n\n"
-    f"<b>Шаг 2.</b> Найди <b>«Автоматизация чатов»</b> — прокрути вниз\n\n"
-    f"<b>Шаг 3.</b> Нажми <b>«Добавить бота»</b> и введи:\n"
-    f"<code>{BOT_USERNAME}</code>\n"
-    f"<i>(нажми чтобы скопировать)</i>\n\n"
-    f"<b>Шаг 4.</b> Нажми <b>Добавить</b> — готово! ✅\n\n"
-    f"<b>Что отслеживается:</b>\n"
-    f"🗑 Удалённые сообщения — пришлю копию\n"
-    f"✏️ Редактирования — было и стало\n"
-    f"💣 Исчезающие медиа — перехват\n\n"
-    f"<i>ℹ️ Автоматизация чатов доступна всем пользователям Telegram — подписка Telegram Premium не требуется</i>"
-)
+# ── Инструкция ──
 
 @user_router.callback_query(F.data == "u:help")
-@user_router.message(F.text == "❓ Помощь")
+@user_router.message(F.text == "❓ Инструкция")
 async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="u:main")]
+        [InlineKeyboardButton(text="⚡️ Подключить бота",
+                              url="https://t.me/settings/business/chatbots")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     if is_call:
         await safe_edit(event, HELP_TEXT, reply_markup=kb)
@@ -825,27 +1202,8 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
     plan = PLANS.get(plan_key)
     if not plan: return await call.answer("Неизвестный тариф", show_alert=True)
 
-    if plan_key == "trial":
-        if await has_used_trial(uid):
-            return await call.answer("❌ Пробный период уже использован!", show_alert=True)
-        await mark_trial_used(uid)
-        expires = await grant_subscription(uid, plan["days"], 0)
-        exp_dt  = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
-        await safe_edit(call,
-            f"🎁 <b>Пробный период активирован!</b>\n\n"
-            f"⏳ Срок: <b>7 дней</b>\n"
-            f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            f"✅ Все функции доступны!\n\n"
-            f"<i>👁 ShadowWatch уже следит за твоими чатами</i>",
-            reply_markup=back_kb())
-        await call.answer("✅ Активировано!")
-        await notify_admins(bot,
-            f"🎁 Новый пробный период\n"
-            f"👤 {user_link(uid, call.from_user.first_name, call.from_user.username)}")
-        return
-
-    plan_icons = {"month": "📅", "three": "📦", "year": "👑"}
-    plan_discounts = {"month": "", "three": f"  🔥 скидка 15%", "year": f"  🔥 скидка 29%"}
+    plan_icons    = {"month": "📅", "three": "📦", "year": "👑"}
+    plan_discounts = {"month": "", "three": "  🔥 скидка 15%", "year": "  🔥 скидка 29%"}
 
     try: await call.message.delete()
     except: pass
@@ -863,11 +1221,11 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
     )
     await bot.send_invoice(
         chat_id=uid,
-        title=f"👁 ShadowWatch · {plan['label']}",
-        description=f"Доступ ко всем функциям ShadowWatch · {plan['desc']}",
+        title=f"👁 {BOT_NAME} · {plan['label']}",
+        description=f"Доступ ко всем функциям {BOT_NAME} · {plan['desc']}",
         payload=f"sub_{plan_key}_{uid}",
         currency="XTR",
-        prices=[LabeledPrice(label=f"ShadowWatch · {plan['label']}", amount=plan["stars"])],
+        prices=[LabeledPrice(label=f"{BOT_NAME} · {plan['label']}", amount=plan["stars"])],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f"⭐ Оплатить {plan['stars']} Stars", pay=True)],
             [InlineKeyboardButton(text="✖️ Отмена", callback_data="u:plans")],
@@ -881,16 +1239,16 @@ async def pre_checkout(query: PreCheckoutQuery):
 
 @payment_router.message(F.successful_payment)
 async def on_payment(msg: Message, bot: Bot):
-    payload   = msg.successful_payment.invoice_payload
-    parts     = payload.split("_")
+    payload  = msg.successful_payment.invoice_payload
+    parts    = payload.split("_")
     if len(parts) < 2: return
-    plan_key  = parts[1]
-    uid       = msg.from_user.id
-    plan      = PLANS.get(plan_key)
+    plan_key = parts[1]
+    uid      = msg.from_user.id
+    plan     = PLANS.get(plan_key)
     if not plan: return
-    expires   = await grant_subscription(uid, plan["days"], 0)
-    exp_dt    = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
-    stars     = msg.successful_payment.total_amount
+    expires  = await grant_subscription(uid, plan["days"], 0)
+    exp_dt   = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
+    stars    = msg.successful_payment.total_amount
     await msg.answer(
         f"🎉 <b>Оплата прошла успешно!</b>\n\n"
         f"👑 <b>Тариф:</b> {plan['label']}\n"
@@ -898,7 +1256,7 @@ async def on_payment(msg: Message, bot: Bot):
         f"📅 <b>Подписка до:</b> {exp_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"✅ Все функции активированы!\n"
         f"🗑 · ✏️ · 💣\n\n"
-        f"<i>👁 ShadowWatch уже следит за твоими чатами</i>",
+        f"<i>👁 {BOT_NAME} уже следит за твоими чатами</i>",
         reply_markup=back_kb()
     )
     await notify_admins(bot,
@@ -907,8 +1265,6 @@ async def on_payment(msg: Message, bot: Bot):
         f"📦 Тариф: {plan['label']}\n"
         f"⭐ Stars: {stars}\n"
         f"📅 До: {exp_dt.strftime('%d.%m.%Y %H:%M')}")
-
-# ── Команды ──
 
 @user_router.message(Command("settings"))
 async def cmd_settings(msg: Message):
@@ -926,30 +1282,34 @@ async def cmd_sub(msg: Message):
 async def cmd_admin(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id): return await msg.answer("⛔ Нет доступа.")
     await state.clear()
-    await msg.answer(f"👁 <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
-                     reply_markup=admin_kb())
+    await msg.answer(
+        f"👁 <b>{BOT_NAME} · Панель администратора</b>\n\nВыбери действие:",
+        reply_markup=admin_kb())
 
 @admin_router.callback_query(F.data == "adm:back")
 async def adm_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await safe_edit(call, f"👁 <b>ShadowWatch · Панель администратора</b>\n\nВыбери действие:",
-                    reply_markup=admin_kb())
+    await safe_edit(call,
+        f"👁 <b>{BOT_NAME} · Панель администратора</b>\n\nВыбери действие:",
+        reply_markup=admin_kb())
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:stats")
 async def adm_stats(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
-    users  = await get_all_users()
-    subs   = await get_all_subscriptions()
-    now    = datetime.now()
-    active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
+    users     = await get_all_users()
+    subs      = await get_all_subscriptions()
+    now       = datetime.now()
+    active    = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
     biz_count = len(_biz_owners)
+    tgt_count = len(_targets)
     await safe_edit(call,
-        f"📊 <b>Статистика ShadowWatch</b>\n\n"
+        f"📊 <b>Статистика {BOT_NAME}</b>\n\n"
         f"👥 Всего пользователей: <b>{len(users)}</b>\n"
         f"⭐ Активных подписок: <b>{len(active)}</b>\n"
         f"📋 Всего выдано: <b>{len(subs)}</b>\n"
-        f"🔗 Business подключений: <b>{biz_count}</b>",
+        f"🔗 Подключений: <b>{biz_count}</b>\n"
+        f"🎯 Активных таргетов: <b>{tgt_count}</b>",
         reply_markup=adm_back_kb())
     await call.answer()
 
@@ -957,11 +1317,13 @@ async def adm_stats(call: CallbackQuery):
 async def adm_users(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     users = await get_all_users()
-    if not users: return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
+    if not users:
+        return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
     lines = [f"👥 <b>Пользователи</b> (последние 50):\n"]
     for u in users[:50]:
         uname = f"@{u['username']}" if u['username'] else "—"
-        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname}")
+        tgt   = " 🎯" if is_target(u["user_id"]) else ""
+        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname}{tgt}")
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
     await call.answer()
 
@@ -971,7 +1333,8 @@ async def adm_subs(call: CallbackQuery):
     subs = await get_all_subscriptions()
     now  = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
-    if not active: return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
+    if not active:
+        return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
     lines = [f"⭐ <b>Активные подписки</b>:\n"]
     for s in active:
         exp = datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S")
@@ -984,11 +1347,173 @@ async def adm_subs(call: CallbackQuery):
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
     await call.answer()
 
+# ── Таргеты ──
+
+@admin_router.callback_query(F.data == "adm:targets")
+async def adm_targets(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    targets = await get_all_targets()
+    text = (
+        f"🎯 <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
+        if targets else
+        "🎯 <b>Таргеты</b>\n\nСписок пуст. Нажми кнопку ниже чтобы добавить."
+    )
+    await safe_edit(call, text, reply_markup=targets_list_kb(targets))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:view:"))
+async def tgt_view(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    t = await get_target(uid)
+    if not t:
+        await call.answer("Таргет не найден", show_alert=True)
+        return await adm_targets(call)
+    name  = t.get("first_name") or "—"
+    uname = f" (@{t['username']})" if t.get("username") else ""
+    text  = (
+        f"🎯 <b>Таргет: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит от этого пользователя:\n\n"
+        f"✅ включено · ❌ выключено"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:toggle:"))
+async def tgt_toggle(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    parts = call.data.split(":")
+    uid   = int(parts[2])
+    field = parts[3]
+    await toggle_target_setting(uid, field)
+    t = await get_target(uid)
+    if not t: return await call.answer("Ошибка", show_alert=True)
+    name  = t.get("first_name") or "—"
+    uname = f" (@{t['username']})" if t.get("username") else ""
+    text  = (
+        f"🎯 <b>Таргет: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит от этого пользователя:\n\n"
+        f"✅ включено · ❌ выключено"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t))
+    await call.answer("✅ Сохранено")
+
+@admin_router.callback_query(F.data.startswith("tgt:del:"))
+async def tgt_delete(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    await remove_target(uid)
+    await call.answer("✅ Таргет удалён", show_alert=True)
+    targets = await get_all_targets()
+    text = (
+        f"🎯 <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
+        if targets else
+        "🎯 <b>Таргеты</b>\n\nСписок пуст."
+    )
+    await safe_edit(call, text, reply_markup=targets_list_kb(targets))
+
+@admin_router.callback_query(F.data == "tgt:add")
+async def tgt_add_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    await state.set_state(AdminStates.waiting_target_id)
+    users = await get_all_users()
+    if users:
+        rows = []
+        for u in users[:20]:
+            name    = u.get("first_name") or "—"
+            uname   = f" @{u['username']}" if u.get("username") else ""
+            already = "🎯 " if is_target(u["user_id"]) else ""
+            rows.append([InlineKeyboardButton(
+                text=f"{already}{name}{uname} [{u['user_id']}]",
+                callback_data=f"tgt:pick:{u['user_id']}"
+            )])
+        rows.append([InlineKeyboardButton(text="✏️ Ввести ID вручную", callback_data="tgt:manual")])
+        rows.append([InlineKeyboardButton(text="◀️ Назад",             callback_data="adm:targets")])
+        await safe_edit(call,
+            "🎯 <b>Выбери пользователя из списка:</b>\n\n🎯 = уже таргет",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    else:
+        await safe_edit(call,
+            "🎯 <b>Добавить таргет</b>\n\nПользователей пока нет.\nВведи Telegram ID вручную:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")]
+            ]))
+    await call.answer()
+
+@admin_router.callback_query(F.data == "tgt:manual")
+async def tgt_manual(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    await state.set_state(AdminStates.waiting_target_id)
+    await safe_edit(call,
+        "🎯 <b>Добавить таргет</b>\n\nВведи Telegram ID пользователя:\n<i>Отмена: /admin</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")]
+        ]))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("tgt:pick:"))
+async def tgt_pick(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    uid = int(call.data.split(":")[2])
+    await state.clear()
+    await add_target(uid, call.from_user.id)
+    t = await get_target(uid)
+    name  = t.get("first_name") or "—" if t else "—"
+    uname = f" (@{t['username']})" if t and t.get("username") else ""
+    text  = (
+        f"🎯 <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настрой что именно приходит:"
+    )
+    await safe_edit(call, text, reply_markup=target_detail_kb(t) if t else adm_back_kb())
+    await call.answer("✅ Таргет добавлен!")
+
+@admin_router.message(AdminStates.waiting_target_id)
+async def tgt_add_id(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id): return
+    try:
+        uid = int(msg.text.strip())
+    except ValueError:
+        return await msg.answer("❗ Введи числовой ID.")
+    await state.clear()
+    await add_target(uid, msg.from_user.id)
+    t = await get_target(uid)
+    name  = t.get("first_name") or f"ID {uid}" if t else f"ID {uid}"
+    uname = f" (@{t['username']})" if t and t.get("username") else ""
+    await msg.answer(
+        f"🎯 <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"Настройки: /admin → Таргеты",
+        parse_mode="HTML"
+    )
+
+@admin_router.message(Command("target"))
+async def cmd_target(msg: Message):
+    if not is_admin(msg.from_user.id): return await msg.answer("⛔ Нет доступа.")
+    parts = msg.text.strip().split()
+    if len(parts) < 2:
+        return await msg.answer("🎯 Используй панель: /admin → Таргеты")
+    try:
+        target_uid = int(parts[1])
+    except ValueError:
+        return await msg.answer("❗ ID должен быть числом.")
+    await add_target(target_uid, msg.from_user.id)
+    await msg.answer(
+        f"🎯 <b>Таргет добавлен!</b>\n🆔 <code>{target_uid}</code>\n\n"
+        f"Настройки: /admin → Таргеты",
+        parse_mode="HTML"
+    )
+
+# ── Выдача / отзыв подписки ──
+
 @admin_router.callback_query(F.data == "adm:grant")
 async def adm_grant_start(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     await state.set_state(AdminStates.waiting_user_id)
-    await safe_edit(call, "✅ <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
+    await safe_edit(call,
+        "✅ <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_user_id)
@@ -999,10 +1524,10 @@ async def adm_grant_id(msg: Message, state: FSMContext):
     await state.update_data(target_user_id=uid)
     await state.set_state(AdminStates.waiting_days)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="7 дней",    callback_data="days:7"),
-         InlineKeyboardButton(text="1 месяц",   callback_data="days:30"),
-         InlineKeyboardButton(text="3 месяца",  callback_data="days:90")],
-        [InlineKeyboardButton(text="1 год",     callback_data="days:365"),
+        [InlineKeyboardButton(text="7 дней",     callback_data="days:7"),
+         InlineKeyboardButton(text="1 месяц",    callback_data="days:30"),
+         InlineKeyboardButton(text="3 месяца",   callback_data="days:90")],
+        [InlineKeyboardButton(text="1 год",      callback_data="days:365"),
          InlineKeyboardButton(text="♾ Навсегда", callback_data="days:9999")],
     ])
     await msg.answer(f"👤 ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb)
@@ -1013,7 +1538,9 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
     days = int(call.data.split(":")[1])
     data = await state.get_data()
     uid  = data.get("target_user_id")
-    if not uid: await state.clear(); return await call.answer("Сессия истекла.", show_alert=True)
+    if not uid:
+        await state.clear()
+        return await call.answer("Сессия истекла.", show_alert=True)
     expires = await grant_subscription(uid, days, call.from_user.id)
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
@@ -1026,10 +1553,11 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
     await call.answer("✅ Готово!")
     try:
         await call.bot.send_message(uid,
-            f"🎉 <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
+            f"🎉 <b>Тебе выдана подписка {BOT_NAME}!</b>\n\n"
             f"⏳ Срок: <b>{days} дн.</b>\n"
             f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            f"<i>Используй /start 👁</i>")
+            f"<i>Используй /start 👁</i>",
+            parse_mode="HTML")
     except: pass
 
 @admin_router.message(AdminStates.waiting_days)
@@ -1038,26 +1566,32 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
     try:
         days = int(msg.text.strip())
         if days <= 0: raise ValueError
-    except ValueError: return await msg.answer("❗ Введи положительное число.")
-    data = await state.get_data(); uid = data.get("target_user_id")
+    except ValueError:
+        return await msg.answer("❗ Введи положительное число.")
+    data = await state.get_data()
+    uid  = data.get("target_user_id")
     expires = await grant_subscription(uid, days, msg.from_user.id)
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
     await msg.answer(
-        f"✅ <b>Подписка выдана!</b>\n\n👤 ID: <code>{uid}</code>\n"
+        f"✅ <b>Подписка выдана!</b>\n\n"
+        f"👤 ID: <code>{uid}</code>\n"
         f"⏳ {days} дн. · до {exp_dt.strftime('%d.%m.%Y %H:%M')}",
         reply_markup=adm_back_kb())
     try:
         await msg.bot.send_message(uid,
-            f"🎉 <b>Тебе выдана подписка ShadowWatch!</b>\n\n"
-            f"⏳ Срок: <b>{days} дн.</b>\n📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>")
+            f"🎉 <b>Тебе выдана подписка {BOT_NAME}!</b>\n\n"
+            f"⏳ Срок: <b>{days} дн.</b>\n"
+            f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
+            parse_mode="HTML")
     except: pass
 
 @admin_router.callback_query(F.data == "adm:revoke")
 async def adm_revoke_start(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     await state.set_state(AdminStates.waiting_revoke)
-    await safe_edit(call, "❌ <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
+    await safe_edit(call,
+        "❌ <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_revoke)
@@ -1067,7 +1601,9 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
     except ValueError: return await msg.answer("❗ Введи числовой ID.")
     await revoke_subscription(uid)
     await state.clear()
-    await msg.answer(f"✅ Подписка пользователя <code>{uid}</code> отозвана.", reply_markup=adm_back_kb())
+    await msg.answer(
+        f"✅ Подписка пользователя <code>{uid}</code> отозвана.",
+        reply_markup=adm_back_kb())
 
 # ══════════════════════════════════════════════
 # ЗАПУСК
@@ -1076,12 +1612,11 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
 async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp  = Dispatcher()
-    # ИСПРАВЛЕНИЕ #2: DeleteMiddleware убрана — не дублируем обработку удалений
     dp.include_routers(admin_router, user_router, event_router, payment_router)
     await init_db()
-    # ИСПРАВЛЕНИЕ #1: Восстанавливаем business-подключения из БД при каждом старте
     await restore_biz_connections()
-    logger.info("ShadowWatch запущен")
+    await restore_targets()
+    logger.info(f"{BOT_NAME} запущен")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types() + [
         "business_connection", "business_message",
         "edited_business_message", "deleted_business_messages"
