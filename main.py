@@ -26,9 +26,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
     LabeledPrice, PreCheckoutQuery,
-    ReplyKeyboardMarkup, KeyboardButton, BusinessConnection,
+    BusinessConnection, BotCommand,
     FSInputFile, InputMediaPhoto, URLInputFile,
-    BotCommand,
 )
 from aiogram.utils.media_group import MediaGroupBuilder
 
@@ -501,7 +500,7 @@ def reply_kb():
             [KeyboardButton(text="⚡️ Подключить бота"), KeyboardButton(text="👤 Личный кабинет")],
             [KeyboardButton(text="🏠 Главное меню"), KeyboardButton(text="💳 Тарифы")],
             [KeyboardButton(text="📋 Подписка"),      KeyboardButton(text="⚙️ Настройки")],
-            [KeyboardButton(text="❓ Помощь")],
+            [KeyboardButton(text="❓ Инструкция")],
         ],
         resize_keyboard=True, persistent=True
     )
@@ -516,7 +515,7 @@ def main_kb():
         [InlineKeyboardButton(text="💳 Тарифы",      callback_data="u:plans"),
          InlineKeyboardButton(text="📋 Подписка",    callback_data="u:sub")],
         [InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings"),
-         InlineKeyboardButton(text="❓ Помощь",      callback_data="u:help")],
+         InlineKeyboardButton(text="❓ Инструкция",   callback_data="u:help")],
         [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
     ])
 
@@ -648,43 +647,26 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 HELP_TEXT = (
-    f"📖 <b>Инструкция по подключению</b>\n\n"
-    f"1️⃣ Заранее скопируй имя бота:\n"
-    f"<code>@{BOT_USERNAME}</code>\n\n"
-    f"2️⃣ Нажми кнопку <b>«⚡️ Подключить бота»</b> ниже —\n"
-    f"откроются настройки Telegram\n\n"
-    f"3️⃣ Найди раздел <b>Автоматизация чатов</b>\n"
-    f"и вставь скопированное имя бота\n\n"
-    f"4️⃣ Готово! Бот начнёт работать сразу ✅\n\n"
-    f"─────────────────────\n"
-    f"<b>Что умеет бот:</b>\n\n"
+    f"📖 <b>Инструкция по {BOT_NAME}</b>\n\n"
+
     f"🗑 <b>Удалённые сообщения</b>\n"
-    f"Мгновенно получаешь копию с именем автора\n\n"
-    f"✏️ <b>Редактирования</b>\n"
-    f"Видишь оригинал сообщения до изменения\n\n"
-    f"💣 <b>Исчезающие медиа</b>\n"
-    f"Фото, видео, кружки и голосовые «один раз»\n\n"
-    f"╔═════════════════════╗\n"
-    f"║  ‼️  КАК СОХРАНИТЬ   ║\n"
-    f"║  ИСЧЕЗАЮЩЕЕ МЕДИА   ║\n"
-    f"╠═════════════════════╣\n"
-    f"║                     ║\n"
-    f"║  <b>НЕ ОТКРЫВАЙ</b> его!  ║\n"
-    f"║                     ║\n"
-    f"║  Ответь на него      ║\n"
-    f"║  сообщением:         ║\n"
-    f"║                     ║\n"
-    f"║      <code>!!</code>           ║\n"
-    f"║                     ║\n"
-    f"║  Бот сам скачает     ║\n"
-    f"║  и пришлёт тебе файл ║\n"
-    f"╚═════════════════════╝\n\n"
-    f"📥 <b>Скачивание любых медиа</b>\n"
-    f"Ответь <code>!!</code> на любое фото / видео /\n"
-    f"голосовое / кружок — бот пришлёт файл\n\n"
-    f"🎯 <b>Слежка за контактом</b>\n"
-    f"Все сообщения выбранного человека\n"
-    f"зеркалируются тебе\n\n"
+    f"Когда собеседник удаляет сообщение — бот мгновенно присылает тебе его копию с именем отправителя и временем удаления. Ты всегда видишь что было написано.\n\n"
+
+    f"✏️ <b>Редактированные сообщения</b>\n"
+    f"Когда собеседник изменяет сообщение — бот присылает тебе оригинальный текст <b>до</b> редактирования. Исправить незаметно не получится.\n\n"
+
+    f"─────────────────────\n"
+    f"💣 <b>Исчезающие медиа — как сохранить</b>\n\n"
+    f"Когда тебе прислали фото, видео, кружок или голосовое с режимом <b>«один раз»</b>:\n\n"
+    f"⛔ <b>НЕ ОТКРЫВАЙ его сам!</b>\n"
+    f"После просмотра файл удалится и бот не сможет его получить.\n\n"
+    f"👉 Вместо этого — <b>ответь</b> на это сообщение командой:\n\n"
+    f"<code>!!</code>\n\n"
+    f"<i>Нажми на текст выше чтобы скопировать</i>\n\n"
+    f"✅ Бот скачает файл и сразу пришлёт его тебе — до того как ты его откроешь.\n\n"
+    f"─────────────────────\n"
+    f"📥 Команда <code>!!</code> также работает на <b>любое обычное медиа</b> — "
+    f"фото, видео, голосовое, кружок. Ответь ей на сообщение и получишь файл.\n\n"
     f"<i>ℹ️ Telegram Premium не нужен — работает у всех</i>"
 )
 
@@ -1481,7 +1463,7 @@ async def btn_cabinet(msg: Message, state: FSMContext = None):
         else:
             exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
             now = datetime.now()
-            is_trial = sub.get("price", 1) == 0
+            is_trial = sub.get("granted_by", 1) == 0  # 0 = выдан системой (пробный/бесплатный)
             exp_str = exp.strftime("%d.%m.%Y")
             if exp > now:
                 days_left = (exp - now).days
@@ -1505,8 +1487,11 @@ async def btn_cabinet(msg: Message, state: FSMContext = None):
                     f"Оформите новую подписку для продолжения."
                 )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Купить / Продлить", callback_data="u:plans")],
-        [InlineKeyboardButton(text="🏠 Главное меню",      callback_data="u:main")],
+        [InlineKeyboardButton(text="💳 Купить / Продлить",  callback_data="u:plans")],
+        [InlineKeyboardButton(text="⚡️ Подключить бота",    url="tg://settings/edit")],
+        [InlineKeyboardButton(text="⚙️ Настройки",          callback_data="u:settings")],
+        [InlineKeyboardButton(text="❓ Инструкция",          callback_data="u:help")],
+        [InlineKeyboardButton(text="🏠 Главное меню",        callback_data="u:main")],
     ])
     await msg.answer(text, reply_markup=kb, parse_mode="HTML")
 
@@ -1554,7 +1539,7 @@ async def cb_toggle(call: CallbackQuery):
 # ── Помощь ──
 
 @user_router.callback_query(F.data == "u:help")
-@user_router.message(F.text == "❓ Помощь")
+@user_router.message(F.text.in_({"❓ Помощь", "❓ Инструкция"}))
 async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1656,6 +1641,10 @@ async def cmd_connect(msg: Message, state: FSMContext):
 @user_router.message(Command("cabinet"))
 async def cmd_cabinet(msg: Message, state: FSMContext):
     await btn_cabinet(msg, state)
+
+@user_router.message(Command("help"))
+async def cmd_help(msg: Message):
+    await show_help(msg)
 
 # ══════════════════════════════════════════════
 # ПРОВЕРКА ИСТЁКШИХ ПОДПИСОК (фоновая задача)
@@ -2066,10 +2055,10 @@ async def main():
     await init_db()
     await restore_biz_connections()
     await restore_targets()
-    # Регистрируем команды (меню "/" в Telegram)
     await bot.set_my_commands([
-        BotCommand(command="connect", description="⚡️ Подключить бота"),
-        BotCommand(command="cabinet", description="👤 Личный кабинет"),
+        BotCommand(command="connect",  description="⚡️ Подключить бота"),
+        BotCommand(command="cabinet",  description="👤 Личный кабинет"),
+        BotCommand(command="help",     description="❓ Инструкция"),
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
