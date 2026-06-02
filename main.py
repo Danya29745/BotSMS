@@ -28,6 +28,7 @@ from aiogram.types import (
     LabeledPrice, PreCheckoutQuery,
     ReplyKeyboardMarkup, KeyboardButton, BusinessConnection,
     FSInputFile, InputMediaPhoto, URLInputFile,
+    BotCommand,
 )
 from aiogram.utils.media_group import MediaGroupBuilder
 
@@ -650,27 +651,40 @@ HELP_TEXT = (
     f"📖 <b>Инструкция по подключению</b>\n\n"
     f"1️⃣ Заранее скопируй имя бота:\n"
     f"<code>@{BOT_USERNAME}</code>\n\n"
-    f"2️⃣ Нажми кнопку <b>«⚡️ Подключить»</b> ниже —\n"
+    f"2️⃣ Нажми кнопку <b>«⚡️ Подключить бота»</b> ниже —\n"
     f"откроются настройки Telegram\n\n"
     f"3️⃣ Найди раздел <b>Автоматизация чатов</b>\n"
     f"и вставь скопированное имя бота\n\n"
     f"4️⃣ Готово! Бот начнёт работать сразу ✅\n\n"
-    f"\n<b>Возможности бота:</b>\n\n"
-    f"🗑 <b>Удалённые сообщения</b> — мгновенно получаешь копию с именем автора\n\n"
-    f"✏️ <b>Редактирования</b> — видишь что было написано до изменения\n\n"
+    f"─────────────────────\n"
+    f"<b>Что умеет бот:</b>\n\n"
+    f"🗑 <b>Удалённые сообщения</b>\n"
+    f"Мгновенно получаешь копию с именем автора\n\n"
+    f"✏️ <b>Редактирования</b>\n"
+    f"Видишь оригинал сообщения до изменения\n\n"
     f"💣 <b>Исчезающие медиа</b>\n"
-    f"Сохраняет фото/видео/кружки/голосовые с таймером <b>«один раз»</b>\n"
-    f"┌─────────────────────\n"
-    f"│ ‼️ <b>ОБЯЗАТЕЛЬНО:</b>\n"
-    f"│ Когда собеседник отправит исчезающее\n"
-    f"│ медиа — <b>не открывай его</b>, а ответь\n"
-    f"│ на него сообщением <code>!!</code>\n"
-    f"│ Бот скачает и пришлёт тебе файл.\n"
-    f"└─────────────────────\n\n"
-    f"📥 <b>Скачивание обычных медиа</b> — ответь <code>!!</code> на любое\n"
-    f"фото/видео/голосовое/кружок — бот пришлёт файл\n\n"
-    f"🎯 <b>Слежка за контактом</b> — все сообщения выбранного\n"
-    f"человека зеркалируются тебе\n\n"
+    f"Фото, видео, кружки и голосовые «один раз»\n\n"
+    f"╔═════════════════════╗\n"
+    f"║  ‼️  КАК СОХРАНИТЬ   ║\n"
+    f"║  ИСЧЕЗАЮЩЕЕ МЕДИА   ║\n"
+    f"╠═════════════════════╣\n"
+    f"║                     ║\n"
+    f"║  <b>НЕ ОТКРЫВАЙ</b> его!  ║\n"
+    f"║                     ║\n"
+    f"║  Ответь на него      ║\n"
+    f"║  сообщением:         ║\n"
+    f"║                     ║\n"
+    f"║      <code>!!</code>           ║\n"
+    f"║                     ║\n"
+    f"║  Бот сам скачает     ║\n"
+    f"║  и пришлёт тебе файл ║\n"
+    f"╚═════════════════════╝\n\n"
+    f"📥 <b>Скачивание любых медиа</b>\n"
+    f"Ответь <code>!!</code> на любое фото / видео /\n"
+    f"голосовое / кружок — бот пришлёт файл\n\n"
+    f"🎯 <b>Слежка за контактом</b>\n"
+    f"Все сообщения выбранного человека\n"
+    f"зеркалируются тебе\n\n"
     f"<i>ℹ️ Telegram Premium не нужен — работает у всех</i>"
 )
 
@@ -1635,6 +1649,14 @@ async def cmd_settings(msg: Message):
 async def cmd_sub(msg: Message):
     await show_sub(msg)
 
+@user_router.message(Command("connect"))
+async def cmd_connect(msg: Message, state: FSMContext):
+    await btn_connect(msg, state)
+
+@user_router.message(Command("cabinet"))
+async def cmd_cabinet(msg: Message, state: FSMContext):
+    await btn_cabinet(msg, state)
+
 # ══════════════════════════════════════════════
 # ПРОВЕРКА ИСТЁКШИХ ПОДПИСОК (фоновая задача)
 # Каждый час проверяет у кого подписка истекла сегодня
@@ -2044,6 +2066,11 @@ async def main():
     await init_db()
     await restore_biz_connections()
     await restore_targets()
+    # Регистрируем команды (меню "/" в Telegram)
+    await bot.set_my_commands([
+        BotCommand(command="connect", description="⚡️ Подключить бота"),
+        BotCommand(command="cabinet", description="👤 Личный кабинет"),
+    ])
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
     logger.info(f"{BOT_NAME} запущен")
