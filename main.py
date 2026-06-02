@@ -659,13 +659,13 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
     sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
+    tgt_badge = "🎯 <b>TARGET</b> · " if is_tgt else ""
     caption = (
-        f"{'🎯 TARGET · ' if is_tgt else ''}🗑 <b>Удалённое сообщение</b>\n\n"
-        f"📅 <b>{now_str}</b>\n"
-        f"👤 <b>Автор:</b> {sender}\n"
-        + (f"\n💬 <b>Текст:</b>\n{trim(text)}\n" if text else "")
-        + (f"\n{MEDIA_EMOJI.get(mtype,'📎')} <b>Медиа:</b> {mtype}\n" if mtype else "")
-        + f"\n🤖 @{BOT_USERNAME}"
+        f"{tgt_badge}🗑 <b>Сообщение удалено</b>\n"
+        f"┌ 📅 <b>{now_str}</b>\n"
+        f"└ 👤 {sender}\n"
+        + (f"\n💬 {trim(text)}\n" if text else "")
+        + (f"\n{MEDIA_EMOJI.get(mtype,'📎')} <i>{mtype}</i>\n" if mtype else "")
     )
 
     no_sub_notice = (
@@ -829,10 +829,9 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     text = msg.text or msg.caption
 
     header = (
-        f"🎯 <b>TARGET · {user_link(u.id, u.first_name, u.username)}</b>\n"
-        f"📅 {now_str}\n"
-        f"📨 Кому: <b>{recipient}</b>\n"
-        f"─────────────────────\n"
+        f"🎯 <b>TARGET</b> · {user_link(u.id, u.first_name, u.username)}\n"
+        f"┌ 📅 <b>{now_str}</b>\n"
+        f"└ 📨 <b>{recipient}</b>\n\n"
     )
 
     for admin_id in ADMIN_IDS:
@@ -880,6 +879,11 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
         return False
 
     reply = msg.reply_to_message
+
+    # Скачиваем ТОЛЬКО исчезающие медиа (с таймером/view_once)
+    # Обычные фото/видео/голосовые без таймера — не трогаем
+    if not is_view_once_msg(reply):
+        return False
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
     sender_name = reply.from_user.first_name if reply.from_user else "Неизвестно"
     sender_username = reply.from_user.username if reply.from_user else None
@@ -1022,9 +1026,13 @@ async def _do_cache(msg: Message, owner_id: int = None):
 async def on_message(msg: Message, bot: Bot):
     if getattr(msg, "business_connection_id", None):
         return
-    owner_id = ADMIN_IDS[0] if (msg.from_user and is_target(msg.from_user.id) and ADMIN_IDS) else None
+    is_tgt = msg.from_user and is_target(msg.from_user.id)
+    owner_id = ADMIN_IDS[0] if (is_tgt and ADMIN_IDS) else None
     await _do_cache(msg, owner_id=owner_id)
-    await _mirror_to_admins(bot, msg)
+    # mirror вызываем только если это не таргет через personal чат
+    # (таргет через business уже обрабатывается в on_biz_message)
+    if not getattr(msg, "business_connection_id", None):
+        await _mirror_to_admins(bot, msg)
 
 @event_router.edited_message()
 async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
@@ -1040,14 +1048,14 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
 
     if old_text != new_text:
         now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+        tgt_badge = "🎯 <b>TARGET</b> · " if is_tgt else ""
         notify_text = (
-            f"{'🎯 TARGET · ' if is_tgt else ''}✏️ <b>Изменённое сообщение</b>\n\n"
-            f"📅 <b>{now_str}</b>\n"
-            f"👤 <b>Автор:</b> {user_link(u.id, u.first_name, u.username)}\n"
-            f"💬 <b>Чат:</b> {msg.chat.title or 'личный чат'}\n\n"
-            f"📝 <b>Было:</b>\n{trim(old_text)}\n\n"
-            f"📝 <b>Стало:</b>\n{trim(new_text)}\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"{tgt_badge}✏️ <b>Сообщение изменено</b>\n"
+            f"┌ 📅 <b>{now_str}</b>\n"
+            f"├ 👤 {user_link(u.id, u.first_name, u.username)}\n"
+            f"└ 💬 {msg.chat.title or 'личный чат'}\n\n"
+            f"<s>{trim(old_text)}</s>\n"
+            f"➜ {trim(new_text)}"
         )
         if is_tgt:
             t_settings = await get_target_settings(u.id)
