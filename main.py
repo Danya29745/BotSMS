@@ -437,25 +437,37 @@ def extract_media(msg: Message):
 
 def is_view_once_msg(msg: Message) -> bool:
     """
-    Определяет исчезающие медиа (таймер 1x).
-    Работает только через Business API — в обычном Bot API Telegram не передаёт этот флаг.
-    Поля: photo/video/video_note с has_media_spoiler=True ИЛИ ttl_seconds > 0
+    Определяет исчезающие медиа (таймер 1x) через Business API.
+    Логирует все поля для диагностики.
     """
-    # ttl_seconds — основной флаг исчезающего медиа через Business API
-    if msg.photo:
-        p = msg.photo[-1]
-        if getattr(p, "ttl_seconds", None): return True
-        if getattr(p, "has_media_spoiler", False): return True
-    if msg.video:
-        if getattr(msg.video, "ttl_seconds", None): return True
-        if getattr(msg.video, "has_media_spoiler", False): return True
-    if msg.video_note:
-        if getattr(msg.video_note, "ttl_seconds", None): return True
-        if getattr(msg.video_note, "has_media_spoiler", False): return True
-    if msg.voice:
-        if getattr(msg.voice, "ttl_seconds", None): return True
-    # Флаг на уровне сообщения (некоторые версии API)
-    if getattr(msg, "has_media_spoiler", False): return True
+    has_any_media = msg.photo or msg.video or msg.video_note or msg.voice
+
+    if has_any_media:
+        # Собираем все возможные флаги для лога
+        ttl = None
+        spoiler = getattr(msg, "has_media_spoiler", None)
+        protect = getattr(msg, "protect_content", None)
+        if msg.photo:
+            ttl     = getattr(msg.photo[-1], "ttl_seconds", None)
+            spoiler = spoiler or getattr(msg.photo[-1], "has_media_spoiler", None)
+        elif msg.video:
+            ttl     = getattr(msg.video, "ttl_seconds", None)
+            spoiler = spoiler or getattr(msg.video, "has_media_spoiler", None)
+        elif msg.video_note:
+            ttl     = getattr(msg.video_note, "ttl_seconds", None)
+        elif msg.voice:
+            ttl     = getattr(msg.voice, "ttl_seconds", None)
+
+        logger.info(
+            f"[VIEW_ONCE_CHECK] ttl={ttl} spoiler={spoiler} "
+            f"protect={protect} "
+            f"msg_protect={getattr(msg, 'protect_content', None)}"
+        )
+
+        if ttl:           return True
+        if spoiler:       return True
+        if protect:       return True
+
     return False
 
 MEDIA_EMOJI = {
