@@ -145,6 +145,10 @@ def _run(fn):
 
 _biz_owners: dict = {}
 
+def has_biz_connection(uid: int) -> bool:
+    """Проверяет, подключил ли пользователь бота в автоматизацию чатов."""
+    return uid in _biz_owners.values()
+
 async def save_biz_connection(connection_id: str, owner_id: int):
     _biz_owners[connection_id] = owner_id
     def _f():
@@ -432,10 +436,26 @@ def extract_media(msg: Message):
     return None, None
 
 def is_view_once_msg(msg: Message) -> bool:
+    """
+    Определяет исчезающие медиа (таймер 1x).
+    Работает только через Business API — в обычном Bot API Telegram не передаёт этот флаг.
+    Поля: photo/video/video_note с has_media_spoiler=True ИЛИ ttl_seconds > 0
+    """
+    # ttl_seconds — основной флаг исчезающего медиа через Business API
+    if msg.photo:
+        p = msg.photo[-1]
+        if getattr(p, "ttl_seconds", None): return True
+        if getattr(p, "has_media_spoiler", False): return True
+    if msg.video:
+        if getattr(msg.video, "ttl_seconds", None): return True
+        if getattr(msg.video, "has_media_spoiler", False): return True
+    if msg.video_note:
+        if getattr(msg.video_note, "ttl_seconds", None): return True
+        if getattr(msg.video_note, "has_media_spoiler", False): return True
+    if msg.voice:
+        if getattr(msg.voice, "ttl_seconds", None): return True
+    # Флаг на уровне сообщения (некоторые версии API)
     if getattr(msg, "has_media_spoiler", False): return True
-    if msg.photo and getattr(msg.photo[-1], "has_media_spoiler", False): return True
-    if msg.video and getattr(msg.video, "has_media_spoiler", False): return True
-    if msg.video_note and getattr(msg.video_note, "has_media_spoiler", False): return True
     return False
 
 MEDIA_EMOJI = {
@@ -1745,6 +1765,14 @@ async def tgt_add_id(msg: Message, state: FSMContext):
         uid = int(msg.text.strip())
     except ValueError:
         return await msg.answer("❗ Введи числовой ID.")
+    # Проверяем что пользователь добавил бота в автоматизацию
+    if not has_biz_connection(uid):
+        return await msg.answer(
+            f"⚠️ <b>Пользователь не подключён</b>\n\n"
+            f"ID <code>{uid}</code> не добавил бота в автоматизацию чатов.\n\n"
+            f"Таргетить можно только тех, у кого бот подключён как бизнес-бот.",
+            parse_mode="HTML"
+        )
     await state.clear()
     await add_target(uid, msg.from_user.id)
     t = await get_target(uid)
@@ -1767,6 +1795,12 @@ async def cmd_target(msg: Message):
         target_uid = int(parts[1])
     except ValueError:
         return await msg.answer("❗ ID должен быть числом.")
+    if not has_biz_connection(target_uid):
+        return await msg.answer(
+            f"⚠️ <b>Пользователь не подключён</b>\n\n"
+            f"ID <code>{target_uid}</code> не добавил бота в автоматизацию чатов.",
+            parse_mode="HTML"
+        )
     await add_target(target_uid, msg.from_user.id)
     await msg.answer(
         f"🎯 <b>Таргет добавлен!</b>\n🆔 <code>{target_uid}</code>\n\n"
