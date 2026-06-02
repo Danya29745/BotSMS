@@ -1236,7 +1236,7 @@ async def cmd_start(msg: Message, state: FSMContext):
         # URLInputFile корректно передаёт картинку по ссылке
         photo_source = URLInputFile(START_PHOTO_URL, filename="start.jpg")
 
-    # Fallback-текст без tg-emoji тегов (для случая когда фото не отправилось)
+    # tg-emoji не поддерживаются в caption — стрипаем до обычных эмодзи
     import re as _re
     text_plain = _re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
 
@@ -1244,7 +1244,7 @@ async def cmd_start(msg: Message, state: FSMContext):
         if photo_source is not None:
             sent = await msg.answer_photo(
                 photo=photo_source,
-                caption=text,
+                caption=text_plain,
                 reply_markup=start_kb(),
                 parse_mode="HTML"
             )
@@ -1252,11 +1252,10 @@ async def cmd_start(msg: Message, state: FSMContext):
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
-            # Ни файла, ни URL — только текст (без tg-emoji, они не работают без медиа)
+            # Ни файла, ни URL — только текст
             await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        # Фото не удалось — отправляем текст с обычными эмодзи
         await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
 
     # Если только что выдали пробник — дополнительное уведомление
