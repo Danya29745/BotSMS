@@ -1800,9 +1800,13 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     await state.set_state(AdminStates.waiting_target_id)
     users = await get_all_users()
-    if users:
+    # Оставляем только тех, кто подключил бота в автоматизацию
+    biz_uids = set(_biz_owners.values())
+    connected = [u for u in users if u["user_id"] in biz_uids]
+
+    if connected:
         rows = []
-        for u in users[:20]:
+        for u in connected[:20]:
             name    = u.get("first_name") or "—"
             uname   = f" @{u['username']}" if u.get("username") else ""
             already = "🎯 " if is_target(u["user_id"]) else ""
@@ -1813,12 +1817,18 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
         rows.append([InlineKeyboardButton(text="✏️ Ввести ID вручную", callback_data="tgt:manual")])
         rows.append([InlineKeyboardButton(text="◀️ Назад",             callback_data="adm:targets")])
         await safe_edit(call,
-            "🎯 <b>Выбери пользователя из списка:</b>\n\n🎯 = уже таргет",
+            f"🎯 <b>Выбери пользователя из списка:</b>\n\n"
+            f"Показаны только пользователи с подключённым ботом ({len(connected)})\n"
+            f"🎯 = уже таргет",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
     else:
         await safe_edit(call,
-            "🎯 <b>Добавить таргет</b>\n\nПользователей пока нет.\nВведи Telegram ID вручную:",
+            "🎯 <b>Добавить таргет</b>\n\n"
+            "⚠️ Нет пользователей с подключённым ботом в автоматизацию.\n\n"
+            "Когда кто-то подключит бота — он появится здесь.\n"
+            "Либо введи ID вручную:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✏️ Ввести ID вручную", callback_data="tgt:manual")],
                 [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")]
             ]))
     await call.answer()
@@ -1838,6 +1848,9 @@ async def tgt_manual(call: CallbackQuery, state: FSMContext):
 async def tgt_pick(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     uid = int(call.data.split(":")[2])
+    if not has_biz_connection(uid):
+        await call.answer("⚠️ Пользователь отключил бота от автоматизации", show_alert=True)
+        return
     await state.clear()
     await add_target(uid, call.from_user.id)
     t = await get_target(uid)
