@@ -485,6 +485,7 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
 def reply_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text="⚡️ Подключить бота"), KeyboardButton(text="👤 Личный кабинет")],
             [KeyboardButton(text="🏠 Главное меню"), KeyboardButton(text="💳 Тарифы")],
             [KeyboardButton(text="📋 Подписка"),      KeyboardButton(text="⚙️ Настройки")],
             [KeyboardButton(text="❓ Помощь")],
@@ -900,9 +901,18 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
 
     reply = msg.reply_to_message
 
-    # Скачиваем ТОЛЬКО исчезающие медиа (с таймером/view_once)
-    # Обычные фото/видео/голосовые без таймера — не трогаем
-    if not is_view_once_msg(reply):
+    # Скачиваем если в reply есть медиа — любой ответ текстом триггерит сохранение.
+    # Это позволяет сохранять исчезающие медиа: пользователь отвечает на сообщение
+    # ДО просмотра — медиа ещё доступно в reply_to_message и бот его скачивает.
+    has_media = (reply.photo or reply.video or reply.video_note or
+                 reply.voice or reply.audio or reply.document)
+    if not has_media:
+        return False
+
+    # Если ответное сообщение само содержит медиа — это не триггер сохранения
+    own_media = (msg.photo or msg.video or msg.video_note or msg.voice or
+                 msg.audio or msg.document or msg.sticker)
+    if own_media:
         return False
     now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
     sender_name = reply.from_user.first_name if reply.from_user else "Неизвестно"
@@ -1096,17 +1106,39 @@ async def on_biz_message(msg: Message, bot: Bot):
     bc_id    = getattr(msg, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
 
-    # Исчезающие медиа — перехватываем
-    if is_view_once_msg(msg) and owner_id:
-        mtype, fid = extract_media(msg)
-        if fid and mtype:
-            await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
+    if not owner_id:
+        return
 
-    # Скачивание файлов через reply (ответ на медиа)
-    if msg.reply_to_message and owner_id:
+    u = msg.from_user
+    # Сообщение от другого пользователя (не от самого владельца аккаунта)
+    is_incoming = u and u.id != owner_id
+
+    if is_incoming:
+        mtype, fid = extract_media(msg)
+
+        # Логируем все поля медиа для диагностики view_once
+        if fid and mtype in ("фото", "видео", "голосовое", "видеосообщение"):
+            vo_flag  = is_view_once_msg(msg)
+            ttl_val  = None
+            if msg.photo:   ttl_val = getattr(msg.photo[-1], "ttl_seconds", None)
+            if msg.video:   ttl_val = getattr(msg.video,     "ttl_seconds", None)
+            if msg.voice:   ttl_val = getattr(msg.voice,     "ttl_seconds", None)
+            if msg.video_note: ttl_val = getattr(msg.video_note, "ttl_seconds", None)
+            logger.info(f"BIZ MEDIA from {u.id}: type={mtype} vo={vo_flag} ttl={ttl_val} "
+                        f"spoiler={getattr(msg,'has_media_spoiler',None)} "
+                        f"protected={getattr(msg.chat,'has_protected_content',None)}")
+
+        # Исчезающие медиа — перехватываем и сохраняем владельцу
+        if is_view_once_msg(msg) and fid and mtype:
+            await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
+            # После перехвата — не кэшируем, не зеркалим
+            return
+
+    # Скачивание файлов через reply (ответ владельца на медиа)
+    if msg.reply_to_message:
         downloaded = await _handle_reply_download(bot, msg, owner_id)
         if downloaded:
-            return  # reply обработан — дальше не кэшируем как обычное сообщение
+            return
 
     await _do_cache(msg, owner_id=owner_id)
     await _mirror_to_admins(bot, msg)
@@ -1382,6 +1414,67 @@ async def show_sub(event, state: FSMContext = None):
         await event.answer()
     else:
         await event.answer(text, reply_markup=kb)
+
+# ── Подключить бота (кнопка клавиатуры) ──
+
+@user_router.message(F.text == "⚡️ Подключить бота")
+async def btn_connect(msg: Message, state: FSMContext = None):
+    uid = msg.from_user.id
+    text = await start_text(uid, msg.from_user.first_name)
+    import re as _re
+    text_plain = _re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
+    await msg.answer(text_plain,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
+        ]),
+        parse_mode="HTML"
+    )
+
+# ── Личный кабинет (кнопка клавиатуры) ──
+
+@user_router.message(F.text == "👤 Личный кабинет")
+async def btn_cabinet(msg: Message, state: FSMContext = None):
+    uid = msg.from_user.id
+    if is_admin(uid):
+        text = "👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
+    else:
+        sub = await get_subscription(uid)
+        if not sub:
+            text = (
+                f"❌ <b>Подписка не активна</b>\n\n"
+                f"Оформите подписку чтобы начать использовать {BOT_NAME}."
+            )
+        else:
+            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
+            is_trial = sub.get("price", 1) == 0
+            exp_str = exp.strftime("%d.%m.%Y")
+            if exp > now:
+                days_left = (exp - now).days
+                if is_trial:
+                    text = (
+                        f"🎁 <b>Тестовый период</b>\n\n"
+                        f"📅 Истекает: <b>{exp_str}</b>\n"
+                        f"⏳ Осталось: <b>{days_left} дн.</b>\n\n"
+                        f"⚠️ <i>После окончания потребуется оформить подписку.</i>"
+                    )
+                else:
+                    text = (
+                        f"✅ <b>Подписка активна</b>\n\n"
+                        f"📅 Активна до: <b>{exp_str}</b>\n"
+                        f"⏳ Осталось: <b>{days_left} дн.</b>"
+                    )
+            else:
+                text = (
+                    f"⏰ <b>Подписка истекла</b>\n\n"
+                    f"Дата истечения: {exp.strftime('%d.%m.%Y')}\n"
+                    f"Оформите новую подписку для продолжения."
+                )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Купить / Продлить", callback_data="u:plans")],
+        [InlineKeyboardButton(text="🏠 Главное меню",      callback_data="u:main")],
+    ])
+    await msg.answer(text, reply_markup=kb, parse_mode="HTML")
 
 # ── Настройки ──
 
