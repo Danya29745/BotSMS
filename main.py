@@ -27,7 +27,7 @@ from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
     LabeledPrice, PreCheckoutQuery,
     ReplyKeyboardMarkup, KeyboardButton, BusinessConnection,
-    FSInputFile, InputMediaPhoto,
+    FSInputFile, InputMediaPhoto, URLInputFile,
 )
 from aiogram.utils.media_group import MediaGroupBuilder
 
@@ -1224,7 +1224,7 @@ async def cmd_start(msg: Message, state: FSMContext):
     global _start_photo_file_id
     photo_path = Path(__file__).parent / "start_image.jpg"
 
-    # Определяем источник фото: кэш → файл на диске → URL/file_id из .env
+    # Определяем источник фото: кэш → файл на диске → URL из .env
     photo_source = None
     use_cached   = False
     if _start_photo_file_id:
@@ -1233,7 +1233,12 @@ async def cmd_start(msg: Message, state: FSMContext):
     elif photo_path.exists():
         photo_source = FSInputFile(photo_path)
     elif START_PHOTO_URL:
-        photo_source = START_PHOTO_URL
+        # URLInputFile корректно передаёт картинку по ссылке
+        photo_source = URLInputFile(START_PHOTO_URL, filename="start.jpg")
+
+    # Fallback-текст без tg-emoji тегов (для случая когда фото не отправилось)
+    import re as _re
+    text_plain = _re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
 
     try:
         if photo_source is not None:
@@ -1247,11 +1252,12 @@ async def cmd_start(msg: Message, state: FSMContext):
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
-            # Ни файла, ни URL — только текст
-            await msg.answer(text, reply_markup=start_kb(), parse_mode="HTML")
+            # Ни файла, ни URL — только текст (без tg-emoji, они не работают без медиа)
+            await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        await msg.answer(text, reply_markup=start_kb(), parse_mode="HTML")
+        # Фото не удалось — отправляем текст с обычными эмодзи
+        await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
 
     # Если только что выдали пробник — дополнительное уведомление
     if trial_just_activated:
