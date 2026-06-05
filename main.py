@@ -415,6 +415,7 @@ async def should_notify(uid, setting) -> bool:
 # ══════════════════════════════════════════════
 
 def is_admin(uid): return uid in ADMIN_IDS
+def _is_admin_sync(uid): return uid in ADMIN_IDS
 
 def user_link(uid, first_name, username=None):
     name = first_name or "Пользователь"
@@ -506,10 +507,11 @@ def reply_kb():
         resize_keyboard=True, persistent=True
     )
 
-def start_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
-    ])
+def start_kb(uid: int = None):
+    buttons = [[InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")]]
+    if uid and not _is_admin_sync(uid):
+        buttons.append([InlineKeyboardButton(text="🎁 Активировать подписку", callback_data="u:activate")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -526,11 +528,16 @@ def back_kb():
     ])
 
 def plans_kb():
+    m = PLANS["month"]["stars"]
+    t = PLANS["three"]["stars"]
+    y = PLANS["year"]["stars"]
+    t_pct = round((1 - t / (m * 3)) * 100)
+    y_pct = round((1 - y / (m * 12)) * 100)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 1 месяц · 35 ⭐",        callback_data="plan:month")],
-        [InlineKeyboardButton(text="📦 3 месяца · 89 ⭐  −15%", callback_data="plan:three")],
-        [InlineKeyboardButton(text="👑 1 год · 299 ⭐  −29%",   callback_data="plan:year")],
-        [InlineKeyboardButton(text="🏠 Главное меню",           callback_data="u:main")],
+        [InlineKeyboardButton(text=f"📅 1 месяц · {m} ⭐",             callback_data="plan:month")],
+        [InlineKeyboardButton(text=f"📦 3 месяца · {t} ⭐  −{t_pct}%", callback_data="plan:three")],
+        [InlineKeyboardButton(text=f"👑 1 год · {y} ⭐  −{y_pct}%",    callback_data="plan:year")],
+        [InlineKeyboardButton(text="🏠 Главное меню",                   callback_data="u:main")],
     ])
 
 def renew_kb():
@@ -547,6 +554,7 @@ def admin_kb():
          InlineKeyboardButton(text="❌ Отозвать",      callback_data="adm:revoke")],
         [InlineKeyboardButton(text="🎯 Таргеты",       callback_data="adm:targets")],
         [InlineKeyboardButton(text="📊 Статистика",    callback_data="adm:stats")],
+        [InlineKeyboardButton(text="💰 Изменить цены", callback_data="adm:prices")],
     ])
 
 def adm_back_kb():
@@ -929,7 +937,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     # до просмотра, и бот скачивает его пока оно ещё доступно в reply_to_message.
     # Telegram не передаёт флаг view_once, поэтому различить нельзя — только триггер.
     trigger_text = (msg.text or "").strip()
-    if trigger_text != "!!":
+    if trigger_text not in ("!!", "🔥"):
         return False
 
     has_media = (reply.photo or reply.video or reply.video_note or
@@ -1157,6 +1165,7 @@ class AdminStates(StatesGroup):
     waiting_days       = State()
     waiting_revoke     = State()
     waiting_target_id  = State()
+    waiting_price      = State()
 
 # ══════════════════════════════════════════════
 # СОБЫТИЯ — кэширование и отслеживание
@@ -1332,11 +1341,9 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
         text = (
             f"🎉 <b>Бот успешно подключён!</b>\n\n"
             f"Привет, {bc.user.first_name}!\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
             f"🎁 <b>Тестовый период активирован!</b>\n"
             f"⏳ Срок: <b>7 дней бесплатно</b>\n"
-            f"📅 Действует до: <b>{exp_str}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📅 Действует до: <b>{exp_str}</b>\n\n"
             f"Теперь бот следит за вашими чатами:\n"
             f"🗑 Удалённые сообщения\n"
             f"✏️ Редактирования\n"
@@ -1365,9 +1372,9 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
             f"👁 <b>{BOT_NAME} подключён!</b>\n\n"
             f"Привет, {bc.user.first_name}!\n\n"
             f"Для работы нужна подписка.\n\n"
-            f"📅 1 месяц · 35 ⭐\n"
-            f"📦 3 месяца · 89 ⭐\n"
-            f"👑 1 год · 299 ⭐\n\n"
+            f"📅 1 месяц · {PLANS['month']['stars']} ⭐\n"
+            f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
+            f"👑 1 год · {PLANS['year']['stars']} ⭐\n\n"
             f"🤖 @{BOT_USERNAME}"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1427,14 +1434,8 @@ async def cmd_start(msg: Message, state: FSMContext):
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
 
-    # Автоматически выдаём пробный период 7 дней при первом /start
-    trial_just_activated = False
-    if not is_admin(u.id) and not await is_subscribed(u.id) and not await has_used_trial(u.id):
-        await mark_trial_used(u.id)
-        await grant_subscription(u.id, 7, 0)
-        trial_just_activated = True
-
     text = await start_text(u.id, u.first_name)
+    trial_just_activated = False
 
     global _start_photo_file_id
     photo_path = Path(__file__).parent / "start_image.jpg"
@@ -1460,7 +1461,7 @@ async def cmd_start(msg: Message, state: FSMContext):
             sent = await msg.answer_photo(
                 photo=photo_source,
                 caption=text_plain,
-                reply_markup=start_kb(),
+                reply_markup=start_kb(u.id),
                 parse_mode="HTML"
             )
             # Кэшируем Telegram file_id после первой успешной загрузки
@@ -1468,25 +1469,12 @@ async def cmd_start(msg: Message, state: FSMContext):
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
             # Ни файла, ни URL — только текст
-            await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
+            await msg.answer(text_plain, reply_markup=start_kb(u.id), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        await msg.answer(text_plain, reply_markup=start_kb(), parse_mode="HTML")
+        await msg.answer(text_plain, reply_markup=start_kb(u.id), parse_mode="HTML")
 
-    # Если только что выдали пробник — дополнительное уведомление
-    if trial_just_activated:
-        sub = await get_subscription(u.id)
-        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
-        exp_str = exp.strftime("%d.%m.%Y")
-        await msg.answer(
-            f"🎁 <b>Вам активирован тестовый период!</b>\n\n"
-            f"⏳ Срок: <b>7 дней бесплатно</b>\n"
-            f"📅 Действует до: <b>{exp_str}</b>\n\n"
-            f"<i>По истечении потребуется продление подписки.</i>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")]
-            ])
-        )
+
 
 @user_router.message(F.text == "🏠 Главное меню")
 @user_router.callback_query(F.data == "u:main")
@@ -1517,9 +1505,9 @@ async def show_plans(event, state: FSMContext = None):
         sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     text = (
         f"💳 <b>Тарифы {BOT_NAME}</b>{sub_info}\n\n"
-        f"📅 <b>1 месяц</b> · 35 ⭐\n"
-        f"📦 <b>3 месяца</b> · 89 ⭐  <i>скидка 15%</i>\n"
-        f"👑 <b>1 год</b> · 299 ⭐  <i>скидка 29%</i>\n\n"
+        f"📅 <b>1 месяц</b> · {PLANS['month']['stars']} ⭐\n"
+        f"📦 <b>3 месяца</b> · {PLANS['three']['stars']} ⭐  <i>скидка {round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
+        f"👑 <b>1 год</b> · {PLANS['year']['stars']} ⭐  <i>скидка {round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
         f"<i>🔒 Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
@@ -1677,6 +1665,44 @@ async def cb_toggle(call: CallbackQuery):
 
 # ── Помощь ──
 
+@user_router.callback_query(F.data == "u:activate")
+async def cb_activate(call: CallbackQuery):
+    uid = call.from_user.id
+    if is_admin(uid):
+        await call.answer("Вы администратор — доступ безлимитный.", show_alert=True)
+        return
+    if await is_subscribed(uid):
+        sub = await get_subscription(uid)
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        await call.answer(
+            f"У вас уже есть активная подписка до {exp.strftime('%d.%m.%Y')}.",
+            show_alert=True
+        )
+        return
+    if await has_used_trial(uid):
+        await call.answer(
+            "Пробный период уже был использован.\nОформите подписку через Тарифы.",
+            show_alert=True
+        )
+        return
+    await mark_trial_used(uid)
+    await grant_subscription(uid, 7, 0)
+    sub = await get_subscription(uid)
+    exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+    exp_str = exp.strftime("%d.%m.%Y")
+    await call.answer()
+    await call.message.answer(
+        f"🎁 <b>Подписка активирована!</b>\n\n"
+        f"⏳ Срок: <b>7 дней бесплатно</b>\n"
+        f"📅 Действует до: <b>{exp_str}</b>\n\n"
+        f"<i>По истечении потребуется оформить платную подписку.</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
+        ])
+    )
+
 @user_router.callback_query(F.data == "u:help")
 @user_router.message(F.text.in_({"❓ Помощь", "❓ Инструкция"}))
 async def show_help(event, state: FSMContext = None):
@@ -1814,9 +1840,9 @@ async def check_expired_subscriptions(bot: Bot):
                     await bot.send_message(uid,
                         f"⏰ <b>Ваша подписка {BOT_NAME} истекла</b>\n\n"
                         f"Чтобы продолжить пользоваться ботом — продлите подписку.\n\n"
-                        f"📅 1 месяц · 35 ⭐\n"
-                        f"📦 3 месяца · 89 ⭐\n"
-                        f"👑 1 год · 299 ⭐",
+                        f"📅 1 месяц · {PLANS['month']['stars']} ⭐\n"
+                        f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
+                        f"👑 1 год · {PLANS['year']['stars']} ⭐",
                         parse_mode="HTML",
                         reply_markup=renew_kb()
                     )
@@ -1845,6 +1871,57 @@ async def adm_back(call: CallbackQuery, state: FSMContext):
         reply_markup=admin_kb())
     await call.answer()
 
+@admin_router.callback_query(F.data == "adm:prices")
+async def adm_prices(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    lines = "\n".join(
+        f"<b>{v['label']}</b>: {v['stars']} ⭐ ({v['days']} дн.)"
+        for v in PLANS.values()
+    )
+    await safe_edit(call,
+        f"💰 <b>Текущие цены</b>\n\n{lines}\n\n"
+        f"Введи новые цены в формате:\n"
+        f"<code>month:35 three:89 year:299</code>\n\n"
+        f"Можно изменить один тариф: <code>month:50</code>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
+        ])
+    )
+    await state.set_state(AdminStates.waiting_price)
+    await call.answer()
+
+@admin_router.message(AdminStates.waiting_price)
+async def adm_set_price(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id): return
+    text = msg.text.strip()
+    updated = []
+    errors  = []
+    for part in text.split():
+        if ":" not in part:
+            errors.append(part)
+            continue
+        key, val = part.split(":", 1)
+        key = key.strip().lower()
+        if key not in PLANS:
+            errors.append(f"{key} — неизвестный тариф")
+            continue
+        try:
+            stars = int(val.strip())
+            if stars <= 0: raise ValueError
+            PLANS[key]["stars"] = stars
+            await save_price(key, stars)
+            updated.append(f"{PLANS[key]['label']}: {stars} ⭐")
+        except ValueError:
+            errors.append(f"{key}:{val} — неверное значение")
+    await state.clear()
+    result = ""
+    if updated:
+        result += "✅ <b>Обновлено:</b>\n" + "\n".join(updated)
+    if errors:
+        result += "\n❌ <b>Ошибки:</b>\n" + "\n".join(errors)
+    await msg.answer(result or "Ничего не изменено", parse_mode="HTML",
+        reply_markup=admin_kb())
+
 @admin_router.callback_query(F.data == "adm:stats")
 async def adm_stats(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
@@ -1870,11 +1947,12 @@ async def adm_users(call: CallbackQuery):
     users = await get_all_users()
     if not users:
         return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
-    lines = [f"👥 <b>Пользователи</b> (последние 50):\n"]
+    lines = [f"👥 <b>Пользователи</b> ({len(users)}):\n"]
     for u in users[:50]:
         uname = f"@{u['username']}" if u['username'] else "—"
         tgt   = " 🎯" if is_target(u["user_id"]) else ""
-        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname}{tgt}")
+        reg   = u.get("registered", "")[:10] if u.get("registered") else "—"
+        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | 📅{reg}{tgt}")
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
     await call.answer()
 
@@ -2202,29 +2280,6 @@ async def main():
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
     logger.info(f"{BOT_NAME} запущен")
-    # Логируем все входящие апдейты для диагностики
-    from aiogram import BaseMiddleware
-    from aiogram.types import Update
-    class LogAllUpdates(BaseMiddleware):
-        async def __call__(self, handler, event, data):
-            logger.info(f"RAW_UPDATE type={type(event).__name__} data={str(event)[:600]}")
-            # Детальный лог business_message для диагностики реакций
-            bm = getattr(event, "business_message", None)
-            if bm:
-                logger.info(
-                    f"BM_DETAIL: "
-                    f"reactions={getattr(bm, 'reactions', None)} "
-                    f"forward_origin={getattr(bm, 'forward_origin', None)} "
-                    f"reply_to={getattr(bm, 'reply_to_message', None) and getattr(bm.reply_to_message, 'message_id', None)} "
-                    f"text={getattr(bm, 'text', None)!r} "
-                    f"caption={getattr(bm, 'caption', None)!r} "
-                    f"photo={bool(getattr(bm, 'photo', None))} "
-                    f"sticker={getattr(bm, 'sticker', None) and getattr(bm.sticker, 'emoji', None)} "
-                    f"from_id={getattr(getattr(bm, 'from_user', None), 'id', None)} "
-                    f"all_keys={[k for k in bm.__dict__.keys() if not k.startswith('_')]}"
-                )
-            return await handler(event, data)
-    dp.update.middleware(LogAllUpdates())
 
     await dp.start_polling(bot, allowed_updates=[
         "message", "edited_message", "callback_query",
