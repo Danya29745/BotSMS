@@ -2202,12 +2202,23 @@ async def main():
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
     logger.info(f"{BOT_NAME} запущен")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types() + [
+    # Логируем все входящие апдейты для диагностики
+    from aiogram import BaseMiddleware
+    from aiogram.types import Update
+    class LogAllUpdates(BaseMiddleware):
+        async def __call__(self, handler, event, data):
+            logger.info(f"RAW_UPDATE type={type(event).__name__} data={str(event)[:300]}")
+            return await handler(event, data)
+    dp.update.middleware(LogAllUpdates())
+
+    await dp.start_polling(bot, allowed_updates=[
+        "message", "edited_message", "callback_query",
         "business_connection", "business_message",
         "edited_business_message", "deleted_business_messages",
         "business_message_reaction",
         "message_reaction",
         "message_reaction_count",
+        "pre_checkout_query", "successful_payment",
     ])
 
 if __name__ == "__main__":
