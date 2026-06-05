@@ -2206,6 +2206,8 @@ async def main():
         "business_connection", "business_message",
         "edited_business_message", "deleted_business_messages",
         "business_message_reaction",
+        "message_reaction",
+        "message_reaction_count",
     ])
 
 if __name__ == "__main__":
