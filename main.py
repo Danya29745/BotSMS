@@ -28,6 +28,7 @@ from aiogram.types import (
     LabeledPrice, PreCheckoutQuery,
     BusinessConnection, BotCommand,
     FSInputFile, InputMediaPhoto, URLInputFile,
+    MessageReactionUpdated,
 )
 from aiogram.utils.media_group import MediaGroupBuilder
 
@@ -1253,7 +1254,13 @@ async def on_biz_message(msg: Message, bot: Bot):
         # Исчезающие медиа — перехватываем и сохраняем владельцу
         if is_view_once_msg(msg) and fid and mtype:
             await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
-            # После перехвата — не кэшируем, не зеркалим
+            # Кэшируем с file_id чтобы реакция 🔥 могла найти файл позже
+            await cache_message(
+                msg.chat.id, msg.message_id,
+                u.id, u.username, u.first_name,
+                msg.text or msg.caption, mtype, fid,
+                owner_id=owner_id, is_view_once=True
+            )
             return
 
     # Скачивание файлов через reply (ответ владельца на медиа)
@@ -1381,7 +1388,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
                 parse_mode="HTML")
         except: pass
 
-@event_router.business_message_reaction()
+@event_router.message_reaction()
 async def on_biz_reaction(reaction_event, bot: Bot):
     """Реакция 🔥 от владельца на сообщение с медиа — скачиваем файл."""
     bc_id    = getattr(reaction_event, "business_connection_id", None)
