@@ -1391,14 +1391,25 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 @event_router.message_reaction()
 async def on_biz_reaction(reaction_event, bot: Bot):
     """Реакция 🔥 от владельца на сообщение с медиа — скачиваем файл."""
+    # Пробуем получить owner_id через business_connection_id
     bc_id    = getattr(reaction_event, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
+
+    # Если нет bc_id — реакция пришла напрямую, actor и есть владелец
+    actor = getattr(reaction_event, "user", None) or getattr(reaction_event, "actor_user", None)
+    if not owner_id and actor:
+        owner_id = actor.id
+
+    logger.info(f"REACTION: bc_id={bc_id} owner_id={owner_id} actor={getattr(actor, 'id', None)} "
+                f"chat={getattr(getattr(reaction_event, 'chat', None), 'id', None)} "
+                f"msg_id={getattr(reaction_event, 'message_id', None)} "
+                f"new_reaction={getattr(reaction_event, 'new_reaction', None)}")
+
     if not owner_id:
         return
 
     # Реакция должна быть от самого владельца аккаунта
-    actor = getattr(reaction_event, "user", None) or getattr(reaction_event, "actor_user", None)
-    if not actor or actor.id != owner_id:
+    if actor and actor.id != owner_id:
         return
 
     await _handle_reaction_download(bot, reaction_event, owner_id)
