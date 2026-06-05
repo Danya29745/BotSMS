@@ -508,18 +508,21 @@ def reply_kb():
     )
 
 def start_kb(uid: int = None):
-    buttons = [[InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")]]
+    buttons = [
+        [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="❓ Как это работает", callback_data="u:help")],
+    ]
     if uid and not _is_admin_sync(uid):
         buttons.append([InlineKeyboardButton(text="🎁 Активировать подписку", callback_data="u:activate")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Тарифы",      callback_data="u:plans"),
-         InlineKeyboardButton(text="📋 Подписка",    callback_data="u:sub")],
-        [InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings"),
-         InlineKeyboardButton(text="❓ Инструкция",   callback_data="u:help")],
-        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="💎 Тарифы",         callback_data="u:plans"),
+         InlineKeyboardButton(text="📊 Активность",     callback_data="u:sub")],
+        [InlineKeyboardButton(text="⚙️ Настройки",      callback_data="u:settings"),
+         InlineKeyboardButton(text="❓ Помощь",          callback_data="u:help")],
+        [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")],
     ])
 
 def back_kb():
@@ -1314,12 +1317,12 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     if not bc.is_enabled:
         try:
             await bot.send_message(uid,
-                f"👁 <b>{BOT_NAME} отключён</b>\n\n"
+                f"🔴 <b>ShadowSMSq отключён</b>\n\n"
                 f"Вы отключили бота от своего аккаунта.\n"
-                f"Чтобы снова включить — нажмите кнопку ниже 👇",
+                f"Для повторного подключения нажмите кнопку ниже 👇",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="⚡️ Подключить снова", url="tg://settings/edit")]
+                    [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")]
                 ]))
         except: pass
         return
@@ -1482,22 +1485,52 @@ async def cb_main(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     if state: await state.clear()
     u = event.from_user
-    text = await start_text(u.id, u.first_name)
+    uid = u.id
+
+    connected = has_biz_connection(uid) or is_admin(uid)
+    if not connected:
+        text = (
+            "🔴 <b>ShadowSMSq не подключён</b>\n\n"
+            "Для начала работы добавьте бота в Автоматизацию Telegram."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")],
+            [InlineKeyboardButton(text="❓ Как это работает", callback_data="u:help")],
+        ])
+        if is_call:
+            await safe_edit(event, text, reply_markup=kb)
+            await event.answer()
+        else:
+            await event.answer(text, reply_markup=kb)
+        return
+
+    if is_admin(uid):
+        status = "🟢 Статус: Администратор"
+        access_line = ""
+    elif await is_subscribed(uid):
+        sub = await get_subscription(uid)
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        exp_str = exp.strftime("%d.%m.%Y")
+        status = "🟢 Статус: Активен"
+        access_line = f"\n📅 Доступ до: <b>{exp_str}</b>"
+    else:
+        status = "🔴 Срок доступа истёк"
+        access_line = ""
+
+    text = (
+        "👁 <b>ShadowSMSq</b>\n\n"
+        + status + access_line + "\n\n"
+        "Активные функции:\n"
+        "🗑 Удалённые сообщения\n"
+        "✏️ Изменения сообщений\n"
+        "📸 Исчезающие медиа"
+    )
     if is_call:
         await safe_edit(event, text, reply_markup=main_kb())
         await event.answer()
     else:
         await event.answer(text, reply_markup=main_kb())
 
-# ── Тарифы ──
-
-@user_router.callback_query(F.data == "u:plans")
-@user_router.message(F.text == "💳 Тарифы")
-async def show_plans(event, state: FSMContext = None):
-    is_call = isinstance(event, CallbackQuery)
-    uid = event.from_user.id
-    subscribed = await is_subscribed(uid)
-    sub_info = ""
     if subscribed:
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
@@ -1844,7 +1877,10 @@ async def check_expired_subscriptions(bot: Bot):
                         f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
                         f"👑 1 год · {PLANS['year']['stars']} ⭐",
                         parse_mode="HTML",
-                        reply_markup=renew_kb()
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="💎 Продлить доступ", callback_data="u:plans")],
+                            [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")],
+                        ])
                     )
                 except Exception as ex:
                     logger.warning(f"expired notify {uid}: {ex}")
