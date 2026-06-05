@@ -1042,6 +1042,107 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             except: pass
 
 # ══════════════════════════════════════════════
+# СКАЧИВАНИЕ ФАЙЛОВ ПО РЕАКЦИИ 🔥
+# Владелец ставит реакцию огонька на сообщение —
+# бот ищет файл в кэше и отправляет владельцу.
+# ══════════════════════════════════════════════
+
+async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
+    """
+    Если владелец ставит реакцию 🔥 на сообщение с медиа — скачиваем файл.
+    Работает через кэш: берём file_id из базы по chat_id + message_id.
+    """
+    chat_id    = reaction_event.chat.id
+    message_id = reaction_event.message_id
+
+    # Проверяем что среди новых реакций есть 🔥
+    new_reactions = getattr(reaction_event, "new_reaction", []) or []
+    has_fire = any(
+        getattr(r, "emoji", None) == "🔥"
+        for r in new_reactions
+    )
+    if not has_fire:
+        return False
+
+    # Берём сообщение из кэша
+    cached = await get_cached_message(chat_id, message_id)
+    if not cached:
+        return False
+
+    fid   = cached.get("file_id")
+    mtype = cached.get("media_type")
+    if not fid or not mtype:
+        return False
+
+    # Проверяем подписку
+    if not is_admin(owner_id) and not await is_subscribed(owner_id):
+        await bot.send_message(
+            owner_id,
+            f"🔒 <b>Скачивание файлов доступно только по подписке</b>\n\n"
+            f"💳 Оформи подписку: /start → Тарифы",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
+            ]),
+        )
+        return True
+
+    now_str      = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    sender_name  = cached.get("first_name") or "Неизвестно"
+    sender_uname = cached.get("username")
+    sender_uid   = cached.get("user_id")
+    sender_link  = user_link(sender_uid, sender_name, sender_uname) if sender_uid else sender_name
+
+    file_path = None
+    try:
+        fl = await bot.get_file(fid)
+        ext_map = {
+            "фото":           "jpg",
+            "видео":          "mp4",
+            "видеосообщение": "mp4",
+            "голосовое":      "ogg",
+            "аудио":          "mp3",
+            "документ":       "bin",
+        }
+        ext       = ext_map.get(mtype, "bin")
+        file_path = MEDIA_DIR / f"{uuid4()}.{ext}"
+        await bot.download_file(fl.file_path, file_path)
+
+        caption = (
+            f"🔥 <b>Скачано по реакции</b>\n"
+            f"👤 От: {sender_link}\n"
+            f"📅 {now_str}"
+        )
+
+        if mtype == "фото":
+            await bot.send_photo(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+        elif mtype == "видео":
+            await bot.send_video(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+        elif mtype == "видеосообщение":
+            await bot.send_video_note(owner_id, FSInputFile(file_path))
+            await bot.send_message(
+                owner_id,
+                f"🔥 <b>Скачан кружок ⬆️</b>\n👤 От: {sender_link}\n📅 {now_str}",
+                parse_mode="HTML",
+            )
+        elif mtype == "голосовое":
+            await bot.send_voice(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+        elif mtype == "аудио":
+            await bot.send_audio(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+        else:
+            await bot.send_document(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+
+        return True
+
+    except Exception as ex:
+        logger.warning(f"reaction_download {owner_id}: {ex}")
+        return False
+    finally:
+        if file_path and Path(file_path).exists():
+            try: Path(file_path).unlink()
+            except: pass
+
+# ══════════════════════════════════════════════
 # РОУТЕРЫ
 # ══════════════════════════════════════════════
 
@@ -1279,6 +1380,21 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
                 f"{'🎁 Выдан тестовый период 7 дней' if trial_activated else '✅ Подписан'}",
                 parse_mode="HTML")
         except: pass
+
+@event_router.business_message_reaction()
+async def on_biz_reaction(reaction_event, bot: Bot):
+    """Реакция 🔥 от владельца на сообщение с медиа — скачиваем файл."""
+    bc_id    = getattr(reaction_event, "business_connection_id", None)
+    owner_id = await resolve_biz_owner(bc_id, bot)
+    if not owner_id:
+        return
+
+    # Реакция должна быть от самого владельца аккаунта
+    actor = getattr(reaction_event, "user", None) or getattr(reaction_event, "actor_user", None)
+    if not actor or actor.id != owner_id:
+        return
+
+    await _handle_reaction_download(bot, reaction_event, owner_id)
 
 # ══════════════════════════════════════════════
 # ПОЛЬЗОВАТЕЛЬСКИЕ КОМАНДЫ
@@ -2070,7 +2186,8 @@ async def main():
     logger.info(f"{BOT_NAME} запущен")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types() + [
         "business_connection", "business_message",
-        "edited_business_message", "deleted_business_messages"
+        "edited_business_message", "deleted_business_messages",
+        "business_message_reaction",
     ])
 
 if __name__ == "__main__":
