@@ -2207,7 +2207,22 @@ async def main():
     from aiogram.types import Update
     class LogAllUpdates(BaseMiddleware):
         async def __call__(self, handler, event, data):
-            logger.info(f"RAW_UPDATE type={type(event).__name__} data={str(event)[:300]}")
+            logger.info(f"RAW_UPDATE type={type(event).__name__} data={str(event)[:600]}")
+            # Детальный лог business_message для диагностики реакций
+            bm = getattr(event, "business_message", None)
+            if bm:
+                logger.info(
+                    f"BM_DETAIL: "
+                    f"reactions={getattr(bm, 'reactions', None)} "
+                    f"forward_origin={getattr(bm, 'forward_origin', None)} "
+                    f"reply_to={getattr(bm, 'reply_to_message', None) and getattr(bm.reply_to_message, 'message_id', None)} "
+                    f"text={getattr(bm, 'text', None)!r} "
+                    f"caption={getattr(bm, 'caption', None)!r} "
+                    f"photo={bool(getattr(bm, 'photo', None))} "
+                    f"sticker={getattr(bm, 'sticker', None) and getattr(bm.sticker, 'emoji', None)} "
+                    f"from_id={getattr(getattr(bm, 'from_user', None), 'id', None)} "
+                    f"all_keys={[k for k in bm.__dict__.keys() if not k.startswith('_')]}"
+                )
             return await handler(event, data)
     dp.update.middleware(LogAllUpdates())
 
