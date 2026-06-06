@@ -1342,46 +1342,39 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if trial_activated:
         text = (
-            f"🎉 <b>Бот успешно подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}!\n\n"
-            f"🎁 <b>Тестовый период активирован!</b>\n"
-            f"⏳ Срок: <b>7 дней бесплатно</b>\n"
+            f"✅ <b>ShadowSMSq успешно активирован</b>\n\n"
+            f"Бот обнаружен в Автоматизации Telegram.\n\n"
+            f"🎁 Вам автоматически открыт пробный доступ на <b>7 дней</b>\n"
             f"📅 Действует до: <b>{exp_str}</b>\n\n"
-            f"Теперь бот следит за вашими чатами:\n"
+            f"Теперь ShadowSMSq отслеживает:\n"
             f"🗑 Удалённые сообщения\n"
-            f"✏️ Редактирования\n"
-            f"💣 Исчезающие медиа\n"
-            f"📥 Скачивание файлов с таймером\n\n"
-            f"<i>По истечении пробного периода потребуется продление подписки.</i>\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"✏️ Изменения сообщений\n"
+            f"📸 Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
-            [InlineKeyboardButton(text="🏠 Меню",   callback_data="u:main")],
+            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
-            f"✅ <b>{BOT_NAME} подключён!</b>\n\n"
+            f"✅ <b>ShadowSMSq успешно подключён!</b>\n\n"
             f"Привет, {bc.user.first_name}!\n\n"
-            f"Бот снова следит за вашими чатами.\n\n"
-            f"🗑 Удалённые · ✏️ Редактирования · 💣 Медиа · 📥 Файлы\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"Бот снова отслеживает ваши чаты.\n\n"
+            f"🗑 Удалённые · ✏️ Изменения · 📸 Медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Меню", callback_data="u:main")],
+            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     else:
         text = (
-            f"👁 <b>{BOT_NAME} подключён!</b>\n\n"
+            f"👁 <b>ShadowSMSq подключён!</b>\n\n"
             f"Привет, {bc.user.first_name}!\n\n"
             f"Для работы нужна подписка.\n\n"
-            f"📅 1 месяц · {PLANS['month']['stars']} ⭐\n"
-            f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
-            f"👑 1 год · {PLANS['year']['stars']} ⭐\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"💎 1 месяц · {PLANS['month']['stars']} ⭐\n"
+            f"💎 3 месяца · {PLANS['three']['stars']} ⭐\n"
+            f"💎 1 год · {PLANS['year']['stars']} ⭐"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
+            [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
         ])
 
     try:
@@ -1552,38 +1545,44 @@ async def cb_main(event, state: FSMContext = None):
 # ── Подписка ──
 
 @user_router.callback_query(F.data == "u:sub")
-@user_router.message(F.text == "📋 Подписка")
-async def show_sub(event, state: FSMContext = None):
+@user_router.message(F.text == "📊 Активность")
+async def show_activity(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
-    if is_admin(uid):
-        text = "👑 <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
-    else:
-        sub = await get_subscription(uid)
-        if not sub:
-            text = (
-                f"❌ <b>Подписка не активна</b>\n\n"
-                f"Оформите подписку чтобы начать использовать {BOT_NAME}."
-            )
+
+    def _get_stats(uid):
+        c = _conn()
+        deleted = c.execute(
+            "SELECT COUNT(*) FROM message_cache WHERE owner_id=? AND text IS NOT NULL", (uid,)
+        ).fetchone()[0]
+        media = c.execute(
+            "SELECT COUNT(*) FROM message_cache WHERE owner_id=? AND file_id IS NOT NULL", (uid,)
+        ).fetchone()[0]
+        c.close()
+        return deleted, media
+
+    deleted_count, media_count = await asyncio.get_event_loop().run_in_executor(None, lambda: _get_stats(uid))
+
+    sub = await get_subscription(uid)
+    sub_line = ""
+    if sub:
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+        if exp > now:
+            days_left = (exp - now).days
+            sub_line = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
         else:
-            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
-            now = datetime.now()
-            if exp > now:
-                days_left = (exp - now).days
-                text = (
-                    f"✅ <b>Подписка активна</b>\n\n"
-                    f"📅 Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
-                    f"⏳ Осталось: <b>{days_left} дн.</b>"
-                )
-            else:
-                text = (
-                    f"⏰ <b>Подписка истекла</b>\n\n"
-                    f"Дата истечения: {exp.strftime('%d.%m.%Y %H:%M')}\n"
-                    f"Оформите новую подписку для продолжения."
-                )
+            sub_line = f"\n\n🔴 <b>Подписка истекла</b> · {exp.strftime('%d.%m.%Y')}"
+
+    text = (
+        f"📊 <b>Активность ShadowSMSq</b>{sub_line}\n\n"
+        f"🗑 Сохранено удалённых сообщений: <b>{deleted_count}</b>\n"
+        f"✏️ Зафиксировано изменений: <b>—</b>\n"
+        f"📸 Сохранено медиа: <b>{media_count}</b>"
+    )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Купить / Продлить", callback_data="u:plans")],
-        [InlineKeyboardButton(text="🏠 Главное меню",      callback_data="u:main")],
+        [InlineKeyboardButton(text="💎 Тарифы",      callback_data="u:plans")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     if is_call:
         await safe_edit(event, text, reply_markup=kb)
@@ -1741,14 +1740,58 @@ async def cb_activate(call: CallbackQuery):
 async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
+        [InlineKeyboardButton(text="📖 Как работает ShadowSMSq", callback_data="u:howworks")],
+        [InlineKeyboardButton(text="⚡ Повторить подключение",    callback_data="u:reconnect")],
+        [InlineKeyboardButton(text="💎 Тарифы",                   callback_data="u:plans")],
+        [InlineKeyboardButton(text="📩 Поддержка",                url="https://t.me/ShadowSMSq_bot")],
+        [InlineKeyboardButton(text="🏠 Главное меню",             callback_data="u:main")],
     ])
+    text = "❓ <b>Помощь</b>\n\nВыберите интересующий раздел:"
     if is_call:
-        await safe_edit(event, HELP_TEXT, reply_markup=kb)
+        await safe_edit(event, text, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(HELP_TEXT, reply_markup=kb)
+        await event.answer(text, reply_markup=kb)
+
+@user_router.callback_query(F.data == "u:howworks")
+async def show_how_works(call: CallbackQuery):
+    text = (
+        f"📖 <b>Как работает ShadowSMSq</b>\n\n"
+        f"ShadowSMSq работает через Автоматизацию Telegram и помогает сохранить важную информацию.\n\n"
+        f"🗑 <b>Удалённые сообщения</b>\n"
+        f"Собеседник удалил сообщение — ты сразу получаешь его копию.\n\n"
+        f"✏️ <b>Изменения сообщений</b>\n"
+        f"Собеседник отредактировал текст — бот присылает оригинал до правки.\n\n"
+        f"📸 <b>Исчезающие медиа</b>\n"
+        f"Фото, видео или голосовое «один раз» — бот сохраняет до того как оно исчезнет.\n\n"
+        f"⚡ Работает автоматически после подключения\n"
+        f"🔒 Настройка занимает меньше минуты"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="◀️ Назад",                 callback_data="u:help")],
+    ])
+    await safe_edit(call, text, reply_markup=kb)
+    await call.answer()
+
+@user_router.callback_query(F.data == "u:reconnect")
+async def show_reconnect(call: CallbackQuery):
+    text = (
+        f"⚡ <b>Повторное подключение</b>\n\n"
+        f"1️⃣ Скопируйте: <code>@{BOT_USERNAME}</code>\n"
+        f"2️⃣ Перейдите в Автоматизацию Telegram\n"
+        f"3️⃣ Добавьте бота в раздел чат-ботов\n"
+        f"4️⃣ Выдайте необходимые разрешения\n\n"
+        f"После подключения уведомление придёт автоматически."
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Скопировать @ShadowSMSq_bot",
+                              switch_inline_query=f"@{BOT_USERNAME}")],
+        [InlineKeyboardButton(text="⚙️ Перейти в Автоматизацию", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="u:help")],
+    ])
+    await safe_edit(call, text, reply_markup=kb)
+    await call.answer()
 
 # ── Покупка ──
 
