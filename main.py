@@ -1011,7 +1011,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             except: pass
 
 # ══════════════════════════════════════════════
-# СКАЧИВАНИЕ ФАЙЛОВ ПО РЕАКЦИИ <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>
+# СКАЧИВАНИЕ ФАЙЛОВ ПО РЕАКЦИИ 🔥
 # Владелец ставит реакцию огонька на сообщение —
 # бот ищет файл в кэше и отправляет владельцу.
 # ══════════════════════════════════════════════
@@ -1024,10 +1024,10 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
     chat_id    = reaction_event.chat.id
     message_id = reaction_event.message_id
 
-    # Проверяем что среди новых реакций есть <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>
+    # Проверяем что среди новых реакций есть 🔥
     new_reactions = getattr(reaction_event, "new_reaction", []) or []
     has_fire = any(
-        getattr(r, "emoji", None) == "<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>"
+        getattr(r, "emoji", None) == "🔥"
         for r in new_reactions
     )
     if not has_fire:
@@ -1224,7 +1224,7 @@ async def on_biz_message(msg: Message, bot: Bot):
         # Исчезающие медиа — перехватываем и сохраняем владельцу
         if is_view_once_msg(msg) and fid and mtype:
             await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
-            # Кэшируем с file_id чтобы реакция <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> могла найти файл позже
+            # Кэшируем с file_id чтобы реакция 🔥 могла найти файл позже
             await cache_message(
                 msg.chat.id, msg.message_id,
                 u.id, u.username, u.first_name,
@@ -1351,7 +1351,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
 @event_router.message_reaction()
 async def on_biz_reaction(reaction_event, bot: Bot):
-    """Реакция <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> от владельца на сообщение с медиа — скачиваем файл."""
+    """Реакция 🔥 от владельца на сообщение с медиа — скачиваем файл."""
     # Пробуем получить owner_id через business_connection_id
     bc_id    = getattr(reaction_event, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
@@ -1730,7 +1730,8 @@ async def show_settings(event, state: FSMContext = None):
 @user_router.callback_query(F.data.startswith("toggle:"))
 async def cb_toggle(call: CallbackQuery):
     if not (await is_subscribed(call.from_user.id) or is_admin(call.from_user.id)):
-        return await call.answer("<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Нужна активная подписка!", show_alert=True)
+        return await call.answer("<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Нужна активная подписка!", show_alert=True,
+        parse_mode="HTML")
     await toggle_user_setting(call.from_user.id, call.data.split(":", 1)[1])
     await show_settings(call)
 
@@ -1857,8 +1858,8 @@ async def on_payment(msg: Message, bot: Bot):
         f"Приятного использования!",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
-        ])
-    )
+        ]),
+        parse_mode="HTML")
     await notify_admins(bot,
         f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> <b>Новая оплата!</b>\n\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(uid, msg.from_user.first_name, msg.from_user.username)}\n"
@@ -1930,7 +1931,8 @@ async def check_expired_subscriptions(bot: Bot):
 
 @admin_router.message(Command("admin"))
 async def cmd_admin(msg: Message, state: FSMContext):
-    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.")
+    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.",
+        parse_mode="HTML")
     await state.clear()
     await msg.answer(
         f"👁 <b>{BOT_NAME} · Панель администратора</b>\n\nВыбери действие:",
@@ -1946,7 +1948,8 @@ async def adm_back(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data == "adm:prices")
 async def adm_prices(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     lines = "\n".join(
         f"<b>{v['label']}</b>: {v['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> ({v['days']} дн.)"
         for v in PLANS.values()
@@ -1999,7 +2002,8 @@ async def adm_set_price(msg: Message, state: FSMContext):
 
 @admin_router.callback_query(F.data == "adm:broadcast")
 async def adm_broadcast_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     users = await get_all_users()
     await safe_edit(call,
         f"<tg-emoji emoji-id=\"5433811242135331842\">📢</tg-emoji> <b>Рассылка</b>\n\n"
@@ -2092,7 +2096,8 @@ async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
 
 @admin_router.callback_query(F.data == "adm:stats")
 async def adm_stats(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     users     = await get_all_users()
     subs      = await get_all_subscriptions()
     now       = datetime.now()
@@ -2111,7 +2116,8 @@ async def adm_stats(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:users")
 async def adm_users(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     users = await get_all_users()
     if not users:
         return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
@@ -2126,7 +2132,8 @@ async def adm_users(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:subs")
 async def adm_subs(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     subs = await get_all_subscriptions()
     now  = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
@@ -2148,7 +2155,8 @@ async def adm_subs(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:targets")
 async def adm_targets(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     targets = await get_all_targets()
     text = (
         f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
@@ -2160,7 +2168,8 @@ async def adm_targets(call: CallbackQuery):
 
 @admin_router.callback_query(F.data.startswith("tgt:view:"))
 async def tgt_view(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     uid = int(call.data.split(":")[2])
     t = await get_target(uid)
     if not t:
@@ -2179,7 +2188,8 @@ async def tgt_view(call: CallbackQuery):
 
 @admin_router.callback_query(F.data.startswith("tgt:toggle:"))
 async def tgt_toggle(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     parts = call.data.split(":")
     uid   = int(parts[2])
     field = parts[3]
@@ -2195,14 +2205,17 @@ async def tgt_toggle(call: CallbackQuery):
         f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> включено · <tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> выключено"
     )
     await safe_edit(call, text, reply_markup=target_detail_kb(t))
-    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Сохранено")
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Сохранено",
+        parse_mode="HTML")
 
 @admin_router.callback_query(F.data.startswith("tgt:del:"))
 async def tgt_delete(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     uid = int(call.data.split(":")[2])
     await remove_target(uid)
-    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет удалён", show_alert=True)
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет удалён", show_alert=True,
+        parse_mode="HTML")
     targets = await get_all_targets()
     text = (
         f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
@@ -2213,7 +2226,8 @@ async def tgt_delete(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "tgt:add")
 async def tgt_add_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     await state.set_state(AdminStates.waiting_target_id)
     users = await get_all_users()
     # Оставляем только тех, кто подключил бота в автоматизацию
@@ -2251,7 +2265,8 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data == "tgt:manual")
 async def tgt_manual(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     await state.set_state(AdminStates.waiting_target_id)
     await safe_edit(call,
         "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Добавить таргет</b>\n\nВведи Telegram ID пользователя:\n<i>Отмена: /admin</i>",
@@ -2262,10 +2277,12 @@ async def tgt_manual(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data.startswith("tgt:pick:"))
 async def tgt_pick(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     uid = int(call.data.split(":")[2])
     if not has_biz_connection(uid):
-        await call.answer("<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> Пользователь отключил бота от автоматизации", show_alert=True)
+        await call.answer("<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> Пользователь отключил бота от автоматизации", show_alert=True,
+        parse_mode="HTML")
         return
     await state.clear()
     await add_target(uid, call.from_user.id)
@@ -2278,7 +2295,8 @@ async def tgt_pick(call: CallbackQuery, state: FSMContext):
         f"Настрой что именно приходит:"
     )
     await safe_edit(call, text, reply_markup=target_detail_kb(t) if t else adm_back_kb())
-    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет добавлен!")
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет добавлен!",
+        parse_mode="HTML")
 
 @admin_router.message(AdminStates.waiting_target_id)
 async def tgt_add_id(msg: Message, state: FSMContext):
@@ -2309,10 +2327,12 @@ async def tgt_add_id(msg: Message, state: FSMContext):
 
 @admin_router.message(Command("target"))
 async def cmd_target(msg: Message):
-    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.")
+    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.",
+        parse_mode="HTML")
     parts = msg.text.strip().split()
     if len(parts) < 2:
-        return await msg.answer("<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> Используй панель: /admin → Таргеты")
+        return await msg.answer("<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> Используй панель: /admin → Таргеты",
+        parse_mode="HTML")
     try:
         target_uid = int(parts[1])
     except ValueError:
@@ -2334,7 +2354,8 @@ async def cmd_target(msg: Message):
 
 @admin_router.callback_query(F.data == "adm:grant")
 async def adm_grant_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     await state.set_state(AdminStates.waiting_user_id)
     await safe_edit(call,
         "<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
@@ -2354,11 +2375,13 @@ async def adm_grant_id(msg: Message, state: FSMContext):
         [InlineKeyboardButton(text="1 год",      callback_data="days:365"),
          InlineKeyboardButton(text="♾ Навсегда", callback_data="days:9999")],
     ])
-    await msg.answer(f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb)
+    await msg.answer(f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb,
+        parse_mode="HTML")
 
 @admin_router.callback_query(F.data.startswith("days:"))
 async def adm_grant_days(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     days = int(call.data.split(":")[1])
     data = await state.get_data()
     uid  = data.get("target_user_id")
@@ -2375,7 +2398,8 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
             f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок: <b>Бессрочно</b>",
             reply_markup=adm_back_kb())
-        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!")
+        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!",
+        parse_mode="HTML")
         try:
             await call.bot.send_message(uid,
                 f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
@@ -2391,7 +2415,8 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             f"⏳ Срок: <b>{days} дн.</b>\n"
             f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
             reply_markup=adm_back_kb())
-        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!")
+        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!",
+        parse_mode="HTML")
         try:
             await call.bot.send_message(uid,
                 f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
@@ -2418,7 +2443,8 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
         f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
         f"⏳ {days} дн. · до {exp_dt.strftime('%d.%m.%Y %H:%M')}",
-        reply_markup=adm_back_kb())
+        reply_markup=adm_back_kb(),
+        parse_mode="HTML")
     try:
         await msg.bot.send_message(uid,
             f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
@@ -2429,7 +2455,8 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
 
 @admin_router.callback_query(F.data == "adm:revoke")
 async def adm_revoke_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
+        parse_mode="HTML")
     await state.set_state(AdminStates.waiting_revoke)
     await safe_edit(call,
         "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
@@ -2444,7 +2471,8 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
     await state.clear()
     await msg.answer(
         f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Подписка пользователя <code>{uid}</code> отозвана.",
-        reply_markup=adm_back_kb())
+        reply_markup=adm_back_kb(),
+        parse_mode="HTML")
 
 # ══════════════════════════════════════════════
 # ЗАПУСК
