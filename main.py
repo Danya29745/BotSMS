@@ -1406,27 +1406,18 @@ async def cmd_start(msg: Message, state: FSMContext):
         # URLInputFile корректно передаёт картинку по ссылке
         photo_source = URLInputFile(START_PHOTO_URL, filename="start.jpg")
 
-    # tg-emoji не поддерживаются в caption — стрипаем до обычных эмодзи
-    import re as _re
-    text_plain = _re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
-
     try:
         if photo_source is not None:
-            sent = await msg.answer_photo(
-                photo=photo_source,
-                caption=text_plain,
-                reply_markup=start_kb(u.id),
-                parse_mode="HTML"
-            )
+            # Отправляем фото без caption
+            sent = await msg.answer_photo(photo=photo_source)
             # Кэшируем Telegram file_id после первой успешной загрузки
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
-        else:
-            # Ни файла, ни URL — только текст
-            await msg.answer(text_plain, reply_markup=start_kb(u.id), parse_mode="HTML")
+        # Текст с tg-emoji отдельным сообщением (caption не поддерживает tg-emoji)
+        await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        await msg.answer(text_plain, reply_markup=start_kb(u.id), parse_mode="HTML")
+        await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
 
 
 
@@ -1629,9 +1620,7 @@ async def show_sub(event, state: FSMContext = None):
 async def btn_connect(msg: Message, state: FSMContext = None):
     uid = msg.from_user.id
     text = await start_text(uid, msg.from_user.first_name)
-    import re as _re
-    text_plain = _re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
-    await msg.answer(text_plain,
+    await msg.answer(text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
         ]),
