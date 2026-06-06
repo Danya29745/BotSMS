@@ -574,7 +574,7 @@ def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
         name  = t.get("first_name") or "—"
         uname = f" @{t['username']}" if t.get("username") else ""
         rows.append([InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> {name}{uname}",
+            text=f"🎯 {name}{uname}",
             callback_data=f"tgt:view:{t['target_user_id']}"
         )])
     rows.append([InlineKeyboardButton(text="➕ Добавить таргет", callback_data="tgt:add")])
@@ -1710,7 +1710,7 @@ async def show_settings(event, state: FSMContext = None):
             text=f"✏️ Изменения сообщений {'🟢' if s['notify_edit'] else '🔴'}",
             callback_data="toggle:notify_edit")],
         [InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Исчезающие медиа {'🟢' if s['notify_self_destruct'] else '🔴'}",
+            text=f"📸 Исчезающие медиа {'🟢' if s['notify_self_destruct'] else '🔴'}",
             callback_data="toggle:notify_self_destruct")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
