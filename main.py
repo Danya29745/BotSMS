@@ -7,9 +7,16 @@ import asyncio
 import logging
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
+
+# Московское время (UTC+3) для отображения в уведомлениях
+_MSK = timezone(timedelta(hours=3))
+
+def _now_str() -> str:
+    """Текущее время по Москве (UTC+3) в формате для уведомлений."""
+    return datetime.now(_MSK).strftime("%d.%m.%Y в %H:%M:%S")
 
 try:
     from dotenv import load_dotenv
@@ -508,7 +515,7 @@ def reply_kb():
     )
 
 def start_kb(uid: int = None):
-    buttons = [[InlineKeyboardButton(text="⚡ Перейти к настройке", callback_data="u:setup")]]
+    buttons = [[InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")]]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
@@ -516,7 +523,8 @@ def main_kb():
         [InlineKeyboardButton(text="💎 Тарифы",      callback_data="u:plans"),
          InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings")],
         [InlineKeyboardButton(text="📊 Активность",  callback_data="u:activity"),
-         InlineKeyboardButton(text="❓ Помощь",       callback_data="u:help")],
+         InlineKeyboardButton(text="📖 Как работает бот", callback_data="u:help")],
+        [InlineKeyboardButton(text="◀️ Назад",       callback_data="u:back_start")],
     ])
 
 def back_kb():
@@ -552,6 +560,7 @@ def admin_kb():
         [InlineKeyboardButton(text="🎯 Таргеты",       callback_data="adm:targets")],
         [InlineKeyboardButton(text="📊 Статистика",    callback_data="adm:stats")],
         [InlineKeyboardButton(text="💰 Изменить цены", callback_data="adm:prices")],
+        [InlineKeyboardButton(text="📢 Рассылка",      callback_data="adm:broadcast")],
     ])
 
 def adm_back_kb():
@@ -608,26 +617,28 @@ async def start_text(uid: int, first_name: str) -> str:
         f"🗑 Сохраняет <b>удалённые сообщения</b>\n"
         f"✏️ Показывает <b>изменения</b> сообщений\n"
         f"📸 Сохраняет <b>исчезающие фото и видео</b>\n\n"
-        f"Для начала добавьте бота в <b>Автоматизацию Telegram</b>."
+        f"Нажимай кнопку ниже 👇"
     )
 
 HELP_TEXT = (
     f"📖 <b>Как работает ShadowSMSq</b>\n\n"
 
+    f"Бот подключается к твоему Telegram через <b>Автоматизацию</b> и работает в фоне — "
+    f"ты ничего не замечаешь, но бот всё видит.\n\n"
+
     f"🗑 <b>Удалённые сообщения</b>\n"
-    f"Собеседник удалил сообщение — ты сразу получаешь его копию.\n"
-    f"Видно кто написал, что написал и когда удалил.\n\n"
+    f"Собеседник написал что-то и удалил? Бот уже сохранил.\n"
+    f"<i>Пример: Маша написала «ненавижу тебя» и сразу удалила — бот пришлёт тебе копию.</i>\n\n"
 
     f"✏️ <b>Изменения сообщений</b>\n"
-    f"Собеседник изменил текст — бот присылает <b>оригинал</b> до правки.\n"
-    f"Незаметно исправить уже не выйдет.\n\n"
+    f"Собеседник отредактировал сообщение — бот пришлёт <b>оригинал</b> до правки.\n"
+    f"<i>Пример: «Я дома» → исправил на «Я задержусь» — ты увидишь оба варианта.</i>\n\n"
 
     f"📸 <b>Исчезающие медиа</b>\n"
-    f"Прислали фото или видео «один раз»?\n\n"
-    f"⛔ <b>Не открывай его!</b>\n"
-    f"После просмотра файл исчезнет — бот уже не успеет его забрать.\n\n"
-    f"✅ <b>Правильный способ:</b>\n"
-    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code>\n\n"
+    f"Прислали фото или видео «один раз»? Не открывай сразу!\n\n"
+    f"⛔ <b>Открыл — файл исчезнет, бот не успеет его забрать.</b>\n\n"
+    f"✅ <b>Как сохранить:</b>\n"
+    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или 🔥\n\n"
     f"Бот скачает файл и сразу пришлёт тебе 👌\n\n"
 
     f"<i>Telegram Premium не нужен — работает у всех</i>"
@@ -657,7 +668,7 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         logger.warning(f"_send_deleted_notify: owner_id не найден")
         return
 
-    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    now_str = _now_str()
     sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
     tgt_badge = "🎯 <b>TARGET</b> · " if is_tgt else ""
@@ -738,7 +749,7 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             try: await bot.send_message(uid, notify_text, parse_mode="HTML")
             except: pass
     else:
-        now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+        now_str = _now_str()
         no_sub = (
             f"✏️ <b>Сообщение было изменено</b>\n\n"
             f"📅 {now_str}\n\n"
@@ -756,7 +767,7 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
 
 async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: str, fid: str):
     u = msg.from_user
-    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    now_str = _now_str()
     caption = (
         f"💣 <b>Исчезающее медиа перехвачено!</b>\n\n"
         f"📅 <b>{now_str}</b>\n"
@@ -815,7 +826,7 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     if not t_settings.get("notify_messages", 1): return
 
     u = msg.from_user
-    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    now_str = _now_str()
 
     bc_id = getattr(msg, "business_connection_id", None)
     if msg.chat.type == "private":
@@ -893,7 +904,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                  reply.voice or reply.audio or reply.document)
     if not has_media:
         return False
-    now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    now_str = _now_str()
     sender_name = reply.from_user.first_name if reply.from_user else "Неизвестно"
     sender_username = reply.from_user.username if reply.from_user else None
     sender_link = user_link(reply.from_user.id, sender_name, sender_username) if reply.from_user else sender_name
@@ -1045,7 +1056,7 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
         )
         return True
 
-    now_str      = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+    now_str      = _now_str()
     sender_name  = cached.get("first_name") or "Неизвестно"
     sender_uname = cached.get("username")
     sender_uid   = cached.get("user_id")
@@ -1115,6 +1126,7 @@ class AdminStates(StatesGroup):
     waiting_revoke     = State()
     waiting_target_id  = State()
     waiting_price      = State()
+    waiting_broadcast  = State()
 
 # ══════════════════════════════════════════════
 # СОБЫТИЯ — кэширование и отслеживание
@@ -1158,7 +1170,7 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     notify_to = owner_id or (cached.get("owner_id") if cached else None)
 
     if old_text != new_text:
-        now_str = datetime.now().strftime("%d.%m.%Y в %H:%M:%S")
+        now_str = _now_str()
         tgt_badge = "🎯 <b>TARGET</b> · " if is_tgt else ""
         notify_text = (
             f"{tgt_badge}✏️ <b>Сообщение изменено</b>\n"
@@ -1265,10 +1277,10 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
             await bot.send_message(uid,
                 f"👁 <b>{BOT_NAME} отключён</b>\n\n"
                 f"Вы отключили бота от своего аккаунта.\n"
-                f"Чтобы снова включить — нажмите кнопку ниже 👇",
+                f"Чтобы снова подключить — нажмите кнопку ниже 👇",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="⚡️ Подключить снова", url="tg://settings/edit")]
+                    [InlineKeyboardButton(text="⚡️ Подключить снова", callback_data="u:setup")]
                 ]))
         except: pass
         return
@@ -1455,9 +1467,13 @@ async def cb_main(event, state: FSMContext = None):
         access = "♾ Безлимитный доступ"
     elif subscribed and sub:
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
-        exp_str = exp.strftime("%d.%m.%Y")
+        days_left = (exp - datetime.now()).days
         status = "🟢 Статус: Активен"
-        access = f"📅 Доступ до: {exp_str}"
+        if days_left > 3000:
+            access = "♾ Бессрочный доступ"
+        else:
+            exp_str = exp.strftime("%d.%m.%Y")
+            access = f"📅 Доступ до: {exp_str}"
     else:
         status = "🔴 Статус: Не активен"
         access = "❌ Доступ не активирован"
@@ -1476,7 +1492,6 @@ async def cb_main(event, state: FSMContext = None):
     elif subscribed or is_admin(uid):
         text = (
             f"👁 <b>ShadowSMSq</b>\n"
-            f"━━━━━━━━━━━━━━━━\n"
             f"{status}\n"
             f"{access}\n\n"
             f"<b>Активные функции:</b>\n"
@@ -1513,8 +1528,7 @@ async def cb_activity(call: CallbackQuery):
     import asyncio as _asyncio
     deleted_cnt, media_cnt = await _asyncio.get_event_loop().run_in_executor(None, _f)
     text = (
-        f"📊 <b>Активность ShadowSMSq</b>\n"
-        f"━━━━━━━━━━━━━━━━\n\n"
+        f"📊 <b>Активность ShadowSMSq</b>\n\n"
         f"🗑 Сохранено удалённых сообщений: <b>{deleted_cnt}</b>\n"
         f"✏️ Зафиксировано изменений: <b>—</b>\n"
         f"📸 Сохранено медиа: <b>{media_cnt}</b>"
@@ -1538,7 +1552,10 @@ async def show_plans(event, state: FSMContext = None):
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
+        if days_left > 3000:
+            sub_info = f"\n\n✅ <b>Подписка активна</b> · ♾ Бессрочно"
+        else:
+            sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     text = (
         f"💎 <b>Тарифы ShadowSMSq</b>{sub_info}\n\n"
         f"В каждый тариф входит:\n"
@@ -1547,7 +1564,6 @@ async def show_plans(event, state: FSMContext = None):
         f"📸 Сохранение исчезающих медиа\n"
         f"⚡ Работа через Автоматизацию Telegram\n"
         f"🔔 Мгновенные уведомления\n\n"
-        f"━━━━━━━━━━━━━━━━\n"
         f"📅 <b>1 месяц</b> · {PLANS['month']['stars']} ⭐\n"
         f"📦 <b>3 месяца</b> · {PLANS['three']['stars']} ⭐  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
         f"👑 <b>1 год</b> · {PLANS['year']['stars']} ⭐  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
@@ -1580,11 +1596,17 @@ async def show_sub(event, state: FSMContext = None):
             now = datetime.now()
             if exp > now:
                 days_left = (exp - now).days
-                text = (
-                    f"✅ <b>Подписка активна</b>\n\n"
-                    f"📅 Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
-                    f"⏳ Осталось: <b>{days_left} дн.</b>"
-                )
+                if days_left > 3000:
+                    text = (
+                        f"🎁 <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                        f"♾ <b>Бессрочная подписка</b>"
+                    )
+                else:
+                    text = (
+                        f"✅ <b>Подписка активна</b>\n\n"
+                        f"📅 Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
+                        f"⏳ Осталось: <b>{days_left} дн.</b>"
+                    )
             else:
                 text = (
                     f"⏰ <b>Подписка истекла</b>\n\n"
@@ -1637,7 +1659,13 @@ async def btn_cabinet(msg: Message, state: FSMContext = None):
             exp_str = exp.strftime("%d.%m.%Y")
             if exp > now:
                 days_left = (exp - now).days
-                if is_trial:
+                if days_left > 3000:
+                    text = (
+                        f"🎁 <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                        f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                        f"♾ Срок действия: <b>Навсегда</b>"
+                    )
+                elif is_trial:
                     text = (
                         f"🎁 <b>Тестовый период</b>\n\n"
                         f"📅 Истекает: <b>{exp_str}</b>\n"
@@ -1750,12 +1778,15 @@ async def cb_activate(call: CallbackQuery):
 @user_router.message(F.text.in_({"❓ Помощь", "❓ Инструкция"}))
 async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡ Повторить подключение", url="tg://settings/edit")],
-        [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
-        [InlineKeyboardButton(text="📩 Поддержка", url="https://t.me/support")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
-    ])
+    uid = event.from_user.id
+    connected = has_biz_connection(uid) or is_admin(uid)
+    inline_buttons = []
+    if not connected:
+        inline_buttons.append([InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")])
+    inline_buttons.append([InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")])
+    inline_buttons.append([InlineKeyboardButton(text="📩 Поддержка", url="https://t.me/support")])
+    inline_buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")])
+    kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
     if is_call:
         await safe_edit(event, HELP_TEXT, reply_markup=kb)
         await event.answer()
@@ -1963,6 +1994,101 @@ async def adm_set_price(msg: Message, state: FSMContext):
         result += "\n❌ <b>Ошибки:</b>\n" + "\n".join(errors)
     await msg.answer(result or "Ничего не изменено", parse_mode="HTML",
         reply_markup=admin_kb())
+
+# ── Рассылка ──
+
+@admin_router.callback_query(F.data == "adm:broadcast")
+async def adm_broadcast_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    users = await get_all_users()
+    await safe_edit(call,
+        f"📢 <b>Рассылка</b>\n\n"
+        f"👥 Получателей: <b>{len(users)}</b> пользователей\n\n"
+        f"Отправь сообщение для рассылки.\n"
+        f"Поддерживаются: текст, фото, видео, документ (с подписью или без).\n\n"
+        f"<i>Отмена: /admin</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
+        ])
+    )
+    await state.set_state(AdminStates.waiting_broadcast)
+    await call.answer()
+
+@admin_router.message(AdminStates.waiting_broadcast)
+async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
+    if not is_admin(msg.from_user.id): return
+    await state.clear()
+    users = await get_all_users()
+    total = len(users)
+    sent = 0
+    failed = 0
+
+    status_msg = await msg.answer(
+        f"📢 <b>Рассылка запущена...</b>\n\n"
+        f"👥 Всего: <b>{total}</b>\n"
+        f"✅ Отправлено: <b>0</b>\n"
+        f"❌ Ошибок: <b>0</b>",
+        parse_mode="HTML"
+    )
+
+    for i, user in enumerate(users):
+        uid = user["user_id"]
+        try:
+            if msg.photo:
+                await bot.send_photo(uid, msg.photo[-1].file_id,
+                    caption=msg.caption, parse_mode="HTML")
+            elif msg.video:
+                await bot.send_video(uid, msg.video.file_id,
+                    caption=msg.caption, parse_mode="HTML")
+            elif msg.document:
+                await bot.send_document(uid, msg.document.file_id,
+                    caption=msg.caption, parse_mode="HTML")
+            elif msg.animation:
+                await bot.send_animation(uid, msg.animation.file_id,
+                    caption=msg.caption, parse_mode="HTML")
+            elif msg.voice:
+                await bot.send_voice(uid, msg.voice.file_id,
+                    caption=msg.caption, parse_mode="HTML")
+            elif msg.sticker:
+                await bot.send_sticker(uid, msg.sticker.file_id)
+            elif msg.text:
+                await bot.send_message(uid, msg.text, parse_mode="HTML")
+            else:
+                failed += 1
+                continue
+            sent += 1
+        except Exception:
+            failed += 1
+
+        # Обновляем счётчик каждые 10 сообщений
+        if (i + 1) % 10 == 0:
+            try:
+                await status_msg.edit_text(
+                    f"📢 <b>Рассылка...</b>\n\n"
+                    f"👥 Всего: <b>{total}</b>\n"
+                    f"✅ Отправлено: <b>{sent}</b>\n"
+                    f"❌ Ошибок: <b>{failed}</b>",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # Небольшая задержка чтобы не получить flood-ban
+        await asyncio.sleep(0.05)
+
+    try:
+        await status_msg.edit_text(
+            f"📢 <b>Рассылка завершена!</b>\n\n"
+            f"👥 Всего: <b>{total}</b>\n"
+            f"✅ Доставлено: <b>{sent}</b>\n"
+            f"❌ Не доставлено: <b>{failed}</b>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:back")]
+            ])
+        )
+    except Exception:
+        pass
 
 @admin_router.callback_query(F.data == "adm:stats")
 async def adm_stats(call: CallbackQuery):
@@ -2242,21 +2368,38 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
     expires = await grant_subscription(uid, days, call.from_user.id)
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
-    await safe_edit(call,
-        f"✅ <b>Подписка выдана!</b>\n\n"
-        f"👤 ID: <code>{uid}</code>\n"
-        f"⏳ Срок: <b>{days} дн.</b>\n"
-        f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
-        reply_markup=adm_back_kb())
-    await call.answer("✅ Готово!")
-    try:
-        await call.bot.send_message(uid,
-            f"🎉 <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+    is_forever = (days == 9999)
+    if is_forever:
+        await safe_edit(call,
+            f"✅ <b>Бессрочная подписка выдана!</b>\n\n"
+            f"👤 ID: <code>{uid}</code>\n"
+            f"♾ Срок: <b>Бессрочно</b>",
+            reply_markup=adm_back_kb())
+        await call.answer("✅ Готово!")
+        try:
+            await call.bot.send_message(uid,
+                f"🎁 <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"♾ Срок действия: <b>Навсегда</b>\n\n"
+                f"<i>Используй /start 👁</i>",
+                parse_mode="HTML")
+        except: pass
+    else:
+        await safe_edit(call,
+            f"✅ <b>Подписка выдана!</b>\n\n"
+            f"👤 ID: <code>{uid}</code>\n"
             f"⏳ Срок: <b>{days} дн.</b>\n"
-            f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            f"<i>Используй /start 👁</i>",
-            parse_mode="HTML")
-    except: pass
+            f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
+            reply_markup=adm_back_kb())
+        await call.answer("✅ Готово!")
+        try:
+            await call.bot.send_message(uid,
+                f"🎉 <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+                f"⏳ Срок: <b>{days} дн.</b>\n"
+                f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                f"<i>Используй /start 👁</i>",
+                parse_mode="HTML")
+        except: pass
 
 @admin_router.message(AdminStates.waiting_days)
 async def adm_grant_days_text(msg: Message, state: FSMContext):
