@@ -508,18 +508,15 @@ def reply_kb():
     )
 
 def start_kb(uid: int = None):
-    buttons = [[InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")]]
-    if uid and not _is_admin_sync(uid):
-        buttons.append([InlineKeyboardButton(text="🎁 Активировать подписку", callback_data="u:activate")])
+    buttons = [[InlineKeyboardButton(text="⚡ Перейти к настройке", callback_data="u:setup")]]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Тарифы",      callback_data="u:plans"),
-         InlineKeyboardButton(text="📋 Подписка",    callback_data="u:sub")],
-        [InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings"),
-         InlineKeyboardButton(text="❓ Инструкция",   callback_data="u:help")],
-        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="💎 Тарифы",      callback_data="u:plans"),
+         InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings")],
+        [InlineKeyboardButton(text="📊 Активность",  callback_data="u:activity"),
+         InlineKeyboardButton(text="❓ Помощь",       callback_data="u:help")],
     ])
 
 def back_kb():
@@ -543,7 +540,7 @@ def plans_kb():
 def renew_kb():
     """Кнопка продления подписки — отправляется при истечении"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Продлить подписку", callback_data="u:plans")],
+        [InlineKeyboardButton(text="💎 Продлить подписку", callback_data="u:plans")],
     ])
 
 def admin_kb():
@@ -606,80 +603,32 @@ def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
 START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на реальный file_id после первой отправки
 
 async def start_text(uid: int, first_name: str) -> str:
-    # Анимированные Premium-эмодзи (у non-Premium показываются как обычные)
-    e_wave  = '<tg-emoji emoji-id="5391215196520824258">👋</tg-emoji>'
-    e_spy   = '<tg-emoji emoji-id="5449735272007515220">🕵️</tg-emoji>'
-    e_del   = '<tg-emoji emoji-id="5467532818188632160">🗑</tg-emoji>'
-    e_edit  = '<tg-emoji emoji-id="5471987862674265387">✏️</tg-emoji>'
-    e_bomb  = '<tg-emoji emoji-id="5377359034965796612">💣</tg-emoji>'
-    e_dl    = '<tg-emoji emoji-id="5440539497383087970">📥</tg-emoji>'
-    e_bolt  = '<tg-emoji emoji-id="5445284980978621387">⚡️</tg-emoji>'
-    e_check = '<tg-emoji emoji-id="5436040291507247438">✅</tg-emoji>'
-    e_crown = '<tg-emoji emoji-id="5361843798418769442">👑</tg-emoji>'
-    e_gift  = '<tg-emoji emoji-id="5445284982394498155">🎁</tg-emoji>'
-    e_warn  = '<tg-emoji emoji-id="5467468661319145490">⚠️</tg-emoji>'
-    e_cross = '<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji>'
-
-    is_trial = False
-    if is_admin(uid):
-        status_line = f"{e_crown} Администратор — безлимитный доступ"
-    elif await is_subscribed(uid):
-        sub = await get_subscription(uid)
-        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
-        days_left = (exp - datetime.now()).days
-        is_trial = sub.get("price", 1) == 0
-        exp_str = exp.strftime("%d.%m.%Y")
-        if is_trial:
-            status_line = f"{e_gift} Тестовый период активен · осталось {days_left} дн."
-        else:
-            status_line = f"{e_check} Подписка активна до {exp_str}"
-    else:
-        status_line = f"{e_cross} Подписка не активна"
-
-    trial_notice = (
-        f"\n{e_warn} <i>Вы используете <b>тестовый период</b> — 7 дней бесплатно.\n"
-        "После окончания потребуется оформить подписку.</i>\n"
-    ) if is_trial else ""
-
     return (
-        f"<b>Возможности бота:</b>\n"
-        f"{e_del} Моментально пришлёт уведомление, если ваш собеседник <b>удалит</b> сообщение\n"
-        f"{e_edit} Покажет что было <b>изменено</b> в сообщении\n"
-        f"{e_bomb} Сохраняет <b>исчезающие медиа</b> — ответь <code>!!</code> на сообщение\n"
-        f"{e_dl} <b>Скачивает медиа с таймером</b> — фото, видео, голосовые, кружки\n\n"
-        f"<b>Как подключить:</b>\n"
-        f"1. Нажмите кнопку <b>«{e_bolt} Подключить»</b> ниже\n"
-        f"2. Выберите <b>«Автоматизация чатов»</b>\n"
-        f"3. Введите в поле: <code>@{BOT_USERNAME}</code>\n\n"
-        f"<b>Статус:</b> {status_line}"
-        f"{trial_notice}"
+        f"👁 <b>ShadowSMSq готов к работе!</b>\n\n"
+        f"🗑 Сохраняет <b>удалённые сообщения</b>\n"
+        f"✏️ Показывает <b>изменения</b> сообщений\n"
+        f"📸 Сохраняет <b>исчезающие фото и видео</b>\n\n"
+        f"Для начала добавьте бота в <b>Автоматизацию Telegram</b>."
     )
 
 HELP_TEXT = (
-    f"👁 <b>{BOT_NAME} — как это работает</b>\n\n"
+    f"📖 <b>Как работает ShadowSMSq</b>\n\n"
 
     f"🗑 <b>Удалённые сообщения</b>\n"
     f"Собеседник удалил сообщение — ты сразу получаешь его копию.\n"
     f"Видно кто написал, что написал и когда удалил.\n\n"
 
-    f"✏️ <b>Редактированные сообщения</b>\n"
+    f"✏️ <b>Изменения сообщений</b>\n"
     f"Собеседник изменил текст — бот присылает <b>оригинал</b> до правки.\n"
     f"Незаметно исправить уже не выйдет.\n\n"
 
-    f"💣 <b>Исчезающие медиа</b>\n"
-    f"Прислали фото, видео, кружок или голосовое «один раз»?\n\n"
+    f"📸 <b>Исчезающие медиа</b>\n"
+    f"Прислали фото или видео «один раз»?\n\n"
     f"⛔ <b>Не открывай его!</b>\n"
     f"После просмотра файл исчезнет — бот уже не успеет его забрать.\n\n"
     f"✅ <b>Правильный способ:</b>\n"
-    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши команду:\n\n"
-    f"      🔑 <code>!!</code>\n\n"
-    f"<i>Это не просто знаки — это команда боту.</i>\n"
-    f"<i>Нажми на </i><code>!!</code><i> выше чтобы скопировать, потом отправь как ответ.</i>\n\n"
+    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code>\n\n"
     f"Бот скачает файл и сразу пришлёт тебе 👌\n\n"
-
-    f"📥 <b>Любые медиа</b>\n"
-    f"<code>!!</code> работает и на обычные фото, видео, голосовые, кружки.\n"
-    f"Ответь командой на любое — получишь файл.\n\n"
 
     f"<i>Telegram Premium не нужен — работает у всех</i>"
 )
@@ -1339,46 +1288,39 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if trial_activated:
         text = (
-            f"🎉 <b>Бот успешно подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}!\n\n"
-            f"🎁 <b>Тестовый период активирован!</b>\n"
-            f"⏳ Срок: <b>7 дней бесплатно</b>\n"
-            f"📅 Действует до: <b>{exp_str}</b>\n\n"
-            f"Теперь бот следит за вашими чатами:\n"
-            f"🗑 Удалённые сообщения\n"
-            f"✏️ Редактирования\n"
-            f"💣 Исчезающие медиа\n"
-            f"📥 Скачивание файлов с таймером\n\n"
-            f"<i>По истечении пробного периода потребуется продление подписки.</i>\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"✅ <b>ShadowSMSq успешно активирован</b>\n\n"
+            f"Бот обнаружен в Автоматизации Telegram.\n\n"
+            f"🎁 <b>Вам автоматически открыт пробный доступ на 7 дней.</b>\n\n"
+            f"Теперь ShadowSMSq отслеживает:\n"
+            f"🗑  Удалённые сообщения\n"
+            f"✏️  Изменения сообщений\n"
+            f"📸  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
-            [InlineKeyboardButton(text="🏠 Меню",   callback_data="u:main")],
+            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
-            f"✅ <b>{BOT_NAME} подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}!\n\n"
-            f"Бот снова следит за вашими чатами.\n\n"
-            f"🗑 Удалённые · ✏️ Редактирования · 💣 Медиа · 📥 Файлы\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"✅ <b>ShadowSMSq успешно активирован</b>\n\n"
+            f"Бот обнаружен в Автоматизации Telegram.\n\n"
+            f"Теперь ShadowSMSq отслеживает:\n"
+            f"🗑  Удалённые сообщения\n"
+            f"✏️  Изменения сообщений\n"
+            f"📸  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Меню", callback_data="u:main")],
+            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     else:
         text = (
-            f"👁 <b>{BOT_NAME} подключён!</b>\n\n"
-            f"Привет, {bc.user.first_name}!\n\n"
-            f"Для работы нужна подписка.\n\n"
+            f"✅ <b>ShadowSMSq успешно подключён!</b>\n\n"
+            f"Для начала работы оформите подписку.\n\n"
             f"📅 1 месяц · {PLANS['month']['stars']} ⭐\n"
             f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
-            f"👑 1 год · {PLANS['year']['stars']} ⭐\n\n"
-            f"🤖 @{BOT_USERNAME}"
+            f"👑 1 год · {PLANS['year']['stars']} ⭐"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
+            [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
         ])
 
     try:
@@ -1476,18 +1418,112 @@ async def cmd_start(msg: Message, state: FSMContext):
 
 
 
+@user_router.callback_query(F.data == "u:setup")
+async def cb_setup(call: CallbackQuery):
+    uid = call.from_user.id
+    text = (
+        f"⚡ <b>Подключение ShadowSMSq</b>\n\n"
+        f"Для подключения потребуется всего <b>2 шага</b>.\n\n"
+        f"1️⃣ Скопируйте: <code>@{BOT_USERNAME}</code>\n"
+        f"2️⃣ Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
+        f"После подключения ShadowSMSq автоматически отправит уведомление."
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Перейти в Автоматизацию", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")],
+    ])
+    await safe_edit(call, text, reply_markup=kb)
+    await call.answer()
+
+@user_router.callback_query(F.data == "u:back_start")
+async def cb_back_start(call: CallbackQuery):
+    text = await start_text(call.from_user.id, call.from_user.first_name)
+    await safe_edit(call, text, reply_markup=start_kb(call.from_user.id))
+    await call.answer()
+
 @user_router.message(F.text == "🏠 Главное меню")
 @user_router.callback_query(F.data == "u:main")
 async def cb_main(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     if state: await state.clear()
-    u = event.from_user
-    text = await start_text(u.id, u.first_name)
+    uid = event.from_user.id
+    subscribed = await is_subscribed(uid)
+    sub = await get_subscription(uid) if subscribed else None
+
+    if is_admin(uid):
+        status = "🟢 Статус: Администратор"
+        access = "♾ Безлимитный доступ"
+    elif subscribed and sub:
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        exp_str = exp.strftime("%d.%m.%Y")
+        status = "🟢 Статус: Активен"
+        access = f"📅 Доступ до: {exp_str}"
+    else:
+        status = "🔴 Статус: Не активен"
+        access = "❌ Доступ не активирован"
+
+    connected = has_biz_connection(uid) or is_admin(uid)
+
+    if not connected and not is_admin(uid):
+        text = (
+            f"🔴 <b>ShadowSMSq не подключён</b>\n\n"
+            f"Для начала работы добавьте бота в <b>Автоматизацию Telegram</b>."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", callback_data="u:setup")],
+            [InlineKeyboardButton(text="❓ Как это работает", callback_data="u:help")],
+        ])
+    elif subscribed or is_admin(uid):
+        text = (
+            f"👁 <b>ShadowSMSq</b>\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"{status}\n"
+            f"{access}\n\n"
+            f"<b>Активные функции:</b>\n"
+            f"🗑  Удалённые сообщения\n"
+            f"✏️  Изменения сообщений\n"
+            f"📸  Исчезающие медиа"
+        )
+        kb = main_kb()
+    else:
+        text = (
+            f"🔴 <b>Срок доступа истёк</b>\n\n"
+            f"Отслеживание сообщений временно приостановлено.\n"
+            f"Чтобы продолжить использование ShadowSMSq, продлите доступ."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💎 Продлить подписку", callback_data="u:plans")],
+        ])
+
     if is_call:
-        await safe_edit(event, text, reply_markup=main_kb())
+        await safe_edit(event, text, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=main_kb())
+        await event.answer(text, reply_markup=kb)
+
+@user_router.callback_query(F.data == "u:activity")
+async def cb_activity(call: CallbackQuery):
+    uid = call.from_user.id
+    def _f():
+        c = _conn()
+        deleted = c.execute("SELECT COUNT(*) as cnt FROM message_cache WHERE owner_id=? AND is_view_once=0", (uid,)).fetchone()
+        view_once = c.execute("SELECT COUNT(*) as cnt FROM message_cache WHERE owner_id=? AND is_view_once=1", (uid,)).fetchone()
+        c.close()
+        return (deleted["cnt"] if deleted else 0), (view_once["cnt"] if view_once else 0)
+    import asyncio as _asyncio
+    deleted_cnt, media_cnt = await _asyncio.get_event_loop().run_in_executor(None, _f)
+    text = (
+        f"📊 <b>Активность ShadowSMSq</b>\n"
+        f"━━━━━━━━━━━━━━━━\n\n"
+        f"🗑 Сохранено удалённых сообщений: <b>{deleted_cnt}</b>\n"
+        f"✏️ Зафиксировано изменений: <b>—</b>\n"
+        f"📸 Сохранено медиа: <b>{media_cnt}</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏠 Назад", callback_data="u:main")],
+    ])
+    await safe_edit(call, text, reply_markup=kb)
+    await call.answer()
 
 # ── Тарифы ──
 
@@ -1504,10 +1540,17 @@ async def show_plans(event, state: FSMContext = None):
         days_left = (exp - datetime.now()).days
         sub_info = f"\n\n✅ <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     text = (
-        f"💳 <b>Тарифы {BOT_NAME}</b>{sub_info}\n\n"
+        f"💎 <b>Тарифы ShadowSMSq</b>{sub_info}\n\n"
+        f"В каждый тариф входит:\n"
+        f"🗑 Сохранение удалённых сообщений\n"
+        f"✏️ История изменений сообщений\n"
+        f"📸 Сохранение исчезающих медиа\n"
+        f"⚡ Работа через Автоматизацию Telegram\n"
+        f"🔔 Мгновенные уведомления\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
         f"📅 <b>1 месяц</b> · {PLANS['month']['stars']} ⭐\n"
-        f"📦 <b>3 месяца</b> · {PLANS['three']['stars']} ⭐  <i>скидка {round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
-        f"👑 <b>1 год</b> · {PLANS['year']['stars']} ⭐  <i>скидка {round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
+        f"📦 <b>3 месяца</b> · {PLANS['three']['stars']} ⭐  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
+        f"👑 <b>1 год</b> · {PLANS['year']['stars']} ⭐  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
         f"<i>🔒 Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
@@ -1633,22 +1676,22 @@ async def show_settings(event, state: FSMContext = None):
     def ico(v): return "🟢" if v else "🔴"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"{ico(s['notify_delete'])} Удалённые сообщения",
+            text=f"🗑 Удалённые сообщения {'🟢' if s['notify_delete'] else '🔴'}",
             callback_data="toggle:notify_delete")],
         [InlineKeyboardButton(
-            text=f"{ico(s['notify_edit'])} Редактирования",
+            text=f"✏️ Изменения сообщений {'🟢' if s['notify_edit'] else '🔴'}",
             callback_data="toggle:notify_edit")],
         [InlineKeyboardButton(
-            text=f"{ico(s['notify_self_destruct'])} Исчезающие медиа",
+            text=f"📸 Исчезающие медиа {'🟢' if s['notify_self_destruct'] else '🔴'}",
             callback_data="toggle:notify_self_destruct")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     text = (
-        f"⚙️ <b>Настройки уведомлений</b>\n\n"
-        f"{ico(s['notify_delete'])} Удалённые сообщения\n"
-        f"{ico(s['notify_edit'])} Редактирования\n"
-        f"{ico(s['notify_self_destruct'])} Исчезающие медиа\n\n"
-        f"<i>Нажми на пункт чтобы включить / выключить</i>"
+        f"⚙️ <b>Настройки отслеживания</b>\n\n"
+        f"Выберите функции, которые хотите использовать.\n\n"
+        f"{ico(s['notify_delete'])} {'🟢 Включено' if s['notify_delete'] else '🔴 Выключено'} — Удалённые сообщения\n"
+        f"{ico(s['notify_edit'])} {'🟢 Включено' if s['notify_edit'] else '🔴 Выключено'} — Изменения сообщений\n"
+        f"{ico(s['notify_self_destruct'])} {'🟢 Включено' if s['notify_self_destruct'] else '🔴 Выключено'} — Исчезающие медиа"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=kb)
@@ -1708,7 +1751,9 @@ async def cb_activate(call: CallbackQuery):
 async def show_help(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="⚡ Повторить подключение", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
+        [InlineKeyboardButton(text="📩 Поддержка", url="https://t.me/support")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     if is_call:
@@ -1775,14 +1820,13 @@ async def on_payment(msg: Message, bot: Bot):
     exp_dt   = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
     stars    = msg.successful_payment.total_amount
     await msg.answer(
-        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
-        f"👑 <b>Тариф:</b> {plan['label']}\n"
-        f"⭐ <b>Списано:</b> {stars} Stars\n"
-        f"📅 <b>Подписка до:</b> {exp_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"✅ Все функции активированы!\n"
-        f"🗑 · ✏️ · 💣 · 📥\n\n"
-        f"<i>👁 {BOT_NAME} уже следит за вашими чатами</i>",
-        reply_markup=back_kb()
+        f"🎉 <b>Доступ успешно активирован</b>\n\n"
+        f"Спасибо за поддержку ShadowSMSq ❤️\n\n"
+        f"📅 <b>Доступ открыт до: {exp_dt.strftime('%d.%m.%Y')}</b>\n\n"
+        f"Приятного использования!",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
+        ])
     )
     await notify_admins(bot,
         f"💳 <b>Новая оплата!</b>\n\n"
@@ -1838,11 +1882,9 @@ async def check_expired_subscriptions(bot: Bot):
                 if is_admin(uid): continue
                 try:
                     await bot.send_message(uid,
-                        f"⏰ <b>Ваша подписка {BOT_NAME} истекла</b>\n\n"
-                        f"Чтобы продолжить пользоваться ботом — продлите подписку.\n\n"
-                        f"📅 1 месяц · {PLANS['month']['stars']} ⭐\n"
-                        f"📦 3 месяца · {PLANS['three']['stars']} ⭐\n"
-                        f"👑 1 год · {PLANS['year']['stars']} ⭐",
+                        f"🔴 <b>Срок доступа истёк</b>\n\n"
+                        f"Отслеживание сообщений временно приостановлено.\n\n"
+                        f"Чтобы продолжить использование ShadowSMSq, продлите доступ.",
                         parse_mode="HTML",
                         reply_markup=renew_kb()
                     )
