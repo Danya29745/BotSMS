@@ -574,7 +574,7 @@ def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
         name  = t.get("first_name") or "—"
         uname = f" @{t['username']}" if t.get("username") else ""
         rows.append([InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> {name}{uname}",
+            text=f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> {name}{uname}",
             callback_data=f"tgt:view:{t['target_user_id']}"
         )])
     rows.append([InlineKeyboardButton(text="➕ Добавить таргет", callback_data="tgt:add")])
@@ -583,7 +583,7 @@ def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
 
 def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
     uid = t["target_user_id"]
-    def icon(val): return "<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji>" if val else "<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji>"
+    def icon(val): return "<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji>" if val else "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji>"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=f"{icon(t.get('notify_messages',1))} Сообщения",
@@ -616,7 +616,7 @@ async def start_text(uid: int, first_name: str) -> str:
         f"👁 <b>ShadowSMSq готов к работе!</b>\n\n"
         f"🗑 Сохраняет <b>удалённые сообщения</b>\n"
         f"✏️ Показывает <b>изменения</b> сообщений\n"
-        f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji> Сохраняет <b>исчезающие фото и видео</b>\n\n"
+        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохраняет <b>исчезающие фото и видео</b>\n\n"
         f"Нажимай кнопку ниже 👇"
     )
 
@@ -634,11 +634,11 @@ HELP_TEXT = (
     f"Собеседник отредактировал сообщение — бот пришлёт <b>оригинал</b> до правки.\n"
     f"<i>Пример: «Я дома» → исправил на «Я задержусь» — ты увидишь оба варианта.</i>\n\n"
 
-    f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji> <b>Исчезающие медиа</b>\n"
+    f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие медиа</b>\n"
     f"Прислали фото или видео «один раз»? Не открывай сразу!\n\n"
-    f"<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji> <b>Открыл — файл исчезнет, бот не успеет его забрать.</b>\n\n"
-    f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Как сохранить:</b>\n"
-    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji>\n\n"
+    f"<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> <b>Открыл — файл исчезнет, бот не успеет его забрать.</b>\n\n"
+    f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Как сохранить:</b>\n"
+    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>\n\n"
     f"Бот скачает файл и сразу пришлёт тебе 👌\n\n"
 
     f"<i>Telegram Premium не нужен — работает у всех</i>"
@@ -671,22 +671,22 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     now_str = _now_str()
     sender  = user_link(author_uid, fname, uname) if author_uid else fname
 
-    tgt_badge = "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>TARGET</b> · " if is_tgt else ""
+    tgt_badge = "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b> · " if is_tgt else ""
     caption = (
         f"{tgt_badge}🗑 <b>Сообщение удалено</b>\n"
-        f"┌ <tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>{now_str}</b>\n"
-        f"└ <tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> {sender}\n"
-        + (f"\n<tg-emoji emoji-id="5197288647275071607">💬</tg-emoji> {trim(text)}\n" if text else "")
+        f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
+        f"└ <tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {sender}\n"
+        + (f"\n<tg-emoji emoji-id=\"5197288647275071607\">💬</tg-emoji> {trim(text)}\n" if text else "")
         + (f"\n{MEDIA_EMOJI.get(mtype,'📎')} <i>{mtype}</i>\n" if mtype else "")
     )
 
     no_sub_notice = (
         f"👁 <b>Сообщение было удалено</b>\n\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}\n"
-        f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> Автор: {sender}\n\n"
-        f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-        f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-        f"<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji> @{BOT_USERNAME}"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Автор: {sender}\n\n"
+        f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
+        f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}"
     )
 
     async def _deliver(to: int):
@@ -752,10 +752,10 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
         now_str = _now_str()
         no_sub = (
             f"✏️ <b>Сообщение было изменено</b>\n\n"
-            f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}\n\n"
-            f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-            f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-            f"<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji> @{BOT_USERNAME}"
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
+            f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
+            f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}"
         )
         try:
             await bot.send_message(uid, no_sub, parse_mode="HTML",
@@ -770,10 +770,10 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
     now_str = _now_str()
     caption = (
         f"💣 <b>Исчезающее медиа перехвачено!</b>\n\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>{now_str}</b>\n"
-        f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>Отправитель:</b> {user_link(u.id, u.first_name, u.username)}\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> <b>Отправитель:</b> {user_link(u.id, u.first_name, u.username)}\n"
         f"{MEDIA_EMOJI.get(mtype,'📎')} <b>Тип:</b> {mtype}\n\n"
-        f"<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji> @{BOT_USERNAME}"
+        f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}"
     )
     if is_target(u.id):
         t_settings = await get_target_settings(u.id)
@@ -789,8 +789,8 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         try:
             await bot.send_message(owner_id,
                 f"💣 <b>Тебе отправили исчезающее медиа</b>\n\n"
-                f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
-                f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> /start → Тарифы\n<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji> @{BOT_USERNAME}",
+                f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
+                f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> /start → Тарифы\n<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -841,8 +841,8 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     text = msg.text or msg.caption
 
     header = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>TARGET</b> · {user_link(u.id, u.first_name, u.username)}\n"
-        f"┌ <tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>{now_str}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b> · {user_link(u.id, u.first_name, u.username)}\n"
+        f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
         f"└ 📨 <b>{recipient}</b>\n\n"
     )
 
@@ -912,8 +912,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     # Проверяем подписку
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
         await bot.send_message(owner_id,
-            f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
-            f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> Оформи подписку: /start → Тарифы",
+            f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
+            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -930,8 +930,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             caption = (
                 f"📥 <b>Скачанное фото</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
             await bot.send_photo(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
 
@@ -941,8 +941,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             caption = (
                 f"📥 <b>Скачанное видео</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
             await bot.send_video(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
 
@@ -953,8 +953,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.send_video_note(owner_id, FSInputFile(file_path))
             await bot.send_message(owner_id,
                 f"📥 <b>Скачанный кружок ⬆️</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}",
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
                 parse_mode="HTML")
 
         elif reply.voice:
@@ -963,8 +963,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             caption = (
                 f"📥 <b>Скачанное голосовое</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
             await bot.send_voice(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
 
@@ -977,8 +977,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             caption = (
                 f"📥 <b>Скачанное аудио</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
             await bot.send_audio(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
 
@@ -991,8 +991,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             caption = (
                 f"📥 <b>Скачанный документ</b>\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
             await bot.send_document(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
 
@@ -1011,23 +1011,23 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             except: pass
 
 # ══════════════════════════════════════════════
-# СКАЧИВАНИЕ ФАЙЛОВ ПО РЕАКЦИИ <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji>
+# СКАЧИВАНИЕ ФАЙЛОВ ПО РЕАКЦИИ <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>
 # Владелец ставит реакцию огонька на сообщение —
 # бот ищет файл в кэше и отправляет владельцу.
 # ══════════════════════════════════════════════
 
 async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
     """
-    Если владелец ставит реакцию <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> на сообщение с медиа — скачиваем файл.
+    Если владелец ставит реакцию <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> на сообщение с медиа — скачиваем файл.
     Работает через кэш: берём file_id из базы по chat_id + message_id.
     """
     chat_id    = reaction_event.chat.id
     message_id = reaction_event.message_id
 
-    # Проверяем что среди новых реакций есть <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji>
+    # Проверяем что среди новых реакций есть <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>
     new_reactions = getattr(reaction_event, "new_reaction", []) or []
     has_fire = any(
-        getattr(r, "emoji", None) == "<tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji>"
+        getattr(r, "emoji", None) == "<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>"
         for r in new_reactions
     )
     if not has_fire:
@@ -1047,8 +1047,8 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
         await bot.send_message(
             owner_id,
-            f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
-            f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> Оформи подписку: /start → Тарифы",
+            f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
+            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1078,9 +1078,9 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
         await bot.download_file(fl.file_path, file_path)
 
         caption = (
-            f"<tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> <b>Скачано по реакции</b>\n"
-            f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n"
-            f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}"
+            f"<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> <b>Скачано по реакции</b>\n"
+            f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
         )
 
         if mtype == "фото":
@@ -1091,7 +1091,7 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
             await bot.send_video_note(owner_id, FSInputFile(file_path))
             await bot.send_message(
                 owner_id,
-                f"<tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> <b>Скачан кружок ⬆️</b>\n<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> От: {sender_link}\n<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> {now_str}",
+                f"<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> <b>Скачан кружок ⬆️</b>\n<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
                 parse_mode="HTML",
             )
         elif mtype == "голосовое":
@@ -1171,12 +1171,12 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
 
     if old_text != new_text:
         now_str = _now_str()
-        tgt_badge = "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>TARGET</b> · " if is_tgt else ""
+        tgt_badge = "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b> · " if is_tgt else ""
         notify_text = (
             f"{tgt_badge}✏️ <b>Сообщение изменено</b>\n"
-            f"┌ <tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>{now_str}</b>\n"
-            f"├ <tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> {user_link(u.id, u.first_name, u.username)}\n"
-            f"└ <tg-emoji emoji-id="5197288647275071607">💬</tg-emoji> {msg.chat.title or 'личный чат'}\n\n"
+            f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
+            f"├ <tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(u.id, u.first_name, u.username)}\n"
+            f"└ <tg-emoji emoji-id=\"5197288647275071607\">💬</tg-emoji> {msg.chat.title or 'личный чат'}\n\n"
             f"<s>{trim(old_text)}</s>\n"
             f"➜ {trim(new_text)}"
         )
@@ -1224,7 +1224,7 @@ async def on_biz_message(msg: Message, bot: Bot):
         # Исчезающие медиа — перехватываем и сохраняем владельцу
         if is_view_once_msg(msg) and fid and mtype:
             await _send_view_once_notify(bot, msg, owner_id, mtype, fid)
-            # Кэшируем с file_id чтобы реакция <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> могла найти файл позже
+            # Кэшируем с file_id чтобы реакция <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> могла найти файл позже
             await cache_message(
                 msg.chat.id, msg.message_id,
                 u.id, u.username, u.first_name,
@@ -1300,36 +1300,36 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if trial_activated:
         text = (
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>ShadowSMSq успешно активирован</b>\n\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>ShadowSMSq успешно активирован</b>\n\n"
             f"Бот обнаружен в Автоматизации Telegram.\n\n"
-            f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Вам автоматически открыт пробный доступ на 7 дней.</b>\n\n"
+            f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Вам автоматически открыт пробный доступ на 7 дней.</b>\n\n"
             f"Теперь ShadowSMSq отслеживает:\n"
             f"🗑  Удалённые сообщения\n"
             f"✏️  Изменения сообщений\n"
-            f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji>  Исчезающие медиа"
+            f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>ShadowSMSq успешно активирован</b>\n\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>ShadowSMSq успешно активирован</b>\n\n"
             f"Бот обнаружен в Автоматизации Telegram.\n\n"
             f"Теперь ShadowSMSq отслеживает:\n"
             f"🗑  Удалённые сообщения\n"
             f"✏️  Изменения сообщений\n"
-            f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji>  Исчезающие медиа"
+            f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
         ])
     else:
         text = (
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>ShadowSMSq успешно подключён!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>ShadowSMSq успешно подключён!</b>\n\n"
             f"Для начала работы оформите подписку.\n\n"
-            f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> 1 месяц · {PLANS['month']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>\n"
-            f"<tg-emoji emoji-id="5454063739512835879">📦</tg-emoji> 3 месяца · {PLANS['three']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>\n"
-            f"<tg-emoji emoji-id="5467406098367521267">👑</tg-emoji> 1 год · {PLANS['year']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>"
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> 1 месяц · {PLANS['month']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
+            f"<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji> 3 месяца · {PLANS['three']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
+            f"<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> 1 год · {PLANS['year']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
@@ -1343,15 +1343,15 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(admin_id,
-                f"<tg-emoji emoji-id="5310278924616356636">🔗</tg-emoji> <b>Новое подключение!</b>\n\n"
-                f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> {user_link(uid, bc.user.first_name, bc.user.username)}\n"
-                f"{'<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> Выдан тестовый период 7 дней' if trial_activated else '<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Подписан'}",
+                f"<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> <b>Новое подключение!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(uid, bc.user.first_name, bc.user.username)}\n"
+                f"{'<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> Выдан тестовый период 7 дней' if trial_activated else '<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Подписан'}",
                 parse_mode="HTML")
         except: pass
 
 @event_router.message_reaction()
 async def on_biz_reaction(reaction_event, bot: Bot):
-    """Реакция <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> от владельца на сообщение с медиа — скачиваем файл."""
+    """Реакция <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> от владельца на сообщение с медиа — скачиваем файл."""
     # Пробуем получить owner_id через business_connection_id
     bc_id    = getattr(reaction_event, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
@@ -1434,7 +1434,7 @@ async def cmd_start(msg: Message, state: FSMContext):
 async def cb_setup(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f"<tg-emoji emoji-id="5431449001532594346">⚡</tg-emoji> <b>Подключение ShadowSMSq</b>\n\n"
+        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> <b>Подключение ShadowSMSq</b>\n\n"
         f"Для подключения потребуется всего <b>2 шага</b>.\n\n"
         f"1️⃣ Скопируйте: <code>@{BOT_USERNAME}</code>\n"
         f"2️⃣ Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
@@ -1463,26 +1463,26 @@ async def cb_main(event, state: FSMContext = None):
     sub = await get_subscription(uid) if subscribed else None
 
     if is_admin(uid):
-        status = "<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji> Статус: Администратор"
-        access = "<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Безлимитный доступ"
+        status = "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Статус: Администратор"
+        access = "<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Безлимитный доступ"
     elif subscribed and sub:
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
-        status = "<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji> Статус: Активен"
+        status = "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Статус: Активен"
         if days_left > 3000:
-            access = "<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Бессрочный доступ"
+            access = "<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Бессрочный доступ"
         else:
             exp_str = exp.strftime("%d.%m.%Y")
-            access = f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> Доступ до: {exp_str}"
+            access = f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Доступ до: {exp_str}"
     else:
-        status = "<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> Статус: Не активен"
-        access = "<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> Доступ не активирован"
+        status = "<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> Статус: Не активен"
+        access = "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Доступ не активирован"
 
     connected = has_biz_connection(uid) or is_admin(uid)
 
     if not connected and not is_admin(uid):
         text = (
-            f"<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> <b>ShadowSMSq не подключён</b>\n\n"
+            f"<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> <b>ShadowSMSq не подключён</b>\n\n"
             f"Для начала работы добавьте бота в <b>Автоматизацию Telegram</b>."
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1497,12 +1497,12 @@ async def cb_main(event, state: FSMContext = None):
             f"<b>Активные функции:</b>\n"
             f"🗑  Удалённые сообщения\n"
             f"✏️  Изменения сообщений\n"
-            f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji>  Исчезающие медиа"
+            f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
         )
         kb = main_kb()
     else:
         text = (
-            f"<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> <b>Срок доступа истёк</b>\n\n"
+            f"<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> <b>Срок доступа истёк</b>\n\n"
             f"Отслеживание сообщений временно приостановлено.\n"
             f"Чтобы продолжить использование ShadowSMSq, продлите доступ."
         )
@@ -1528,10 +1528,10 @@ async def cb_activity(call: CallbackQuery):
     import asyncio as _asyncio
     deleted_cnt, media_cnt = await _asyncio.get_event_loop().run_in_executor(None, _f)
     text = (
-        f"<tg-emoji emoji-id="5431577498364158238">📊</tg-emoji> <b>Активность ShadowSMSq</b>\n\n"
+        f"<tg-emoji emoji-id=\"5431577498364158238\">📊</tg-emoji> <b>Активность ShadowSMSq</b>\n\n"
         f"🗑 Сохранено удалённых сообщений: <b>{deleted_cnt}</b>\n"
         f"✏️ Зафиксировано изменений: <b>—</b>\n"
-        f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji> Сохранено медиа: <b>{media_cnt}</b>"
+        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранено медиа: <b>{media_cnt}</b>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Назад", callback_data="u:main")],
@@ -1553,21 +1553,21 @@ async def show_plans(event, state: FSMContext = None):
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
         if days_left > 3000:
-            sub_info = f"\n\n<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Бессрочно"
+            sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Бессрочно"
         else:
-            sub_info = f"\n\n<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
+            sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     text = (
-        f"<tg-emoji emoji-id="5471952986970267163">💎</tg-emoji> <b>Тарифы ShadowSMSq</b>{sub_info}\n\n"
+        f"<tg-emoji emoji-id=\"5471952986970267163\">💎</tg-emoji> <b>Тарифы ShadowSMSq</b>{sub_info}\n\n"
         f"В каждый тариф входит:\n"
         f"🗑 Сохранение удалённых сообщений\n"
         f"✏️ История изменений сообщений\n"
-        f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji> Сохранение исчезающих медиа\n"
-        f"<tg-emoji emoji-id="5431449001532594346">⚡</tg-emoji> Работа через Автоматизацию Telegram\n"
-        f"<tg-emoji emoji-id="5242628160297641831">🔔</tg-emoji> Мгновенные уведомления\n\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>1 месяц</b> · {PLANS['month']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>\n"
-        f"<tg-emoji emoji-id="5454063739512835879">📦</tg-emoji> <b>3 месяца</b> · {PLANS['three']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
-        f"<tg-emoji emoji-id="5467406098367521267">👑</tg-emoji> <b>1 год</b> · {PLANS['year']['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
-        f"<i><tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
+        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранение исчезающих медиа\n"
+        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> Работа через Автоматизацию Telegram\n"
+        f"<tg-emoji emoji-id=\"5242628160297641831\">🔔</tg-emoji> Мгновенные уведомления\n\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>1 месяц</b> · {PLANS['month']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
+        f"<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji> <b>3 месяца</b> · {PLANS['three']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
+        f"<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>1 год</b> · {PLANS['year']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
+        f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=plans_kb())
@@ -1583,12 +1583,12 @@ async def show_sub(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
     if is_admin(uid):
-        text = "<tg-emoji emoji-id="5467406098367521267">👑</tg-emoji> <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
+        text = "<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
     else:
         sub = await get_subscription(uid)
         if not sub:
             text = (
-                f"<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <b>Подписка не активна</b>\n\n"
+                f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Подписка не активна</b>\n\n"
                 f"Оформите подписку чтобы начать использовать {BOT_NAME}."
             )
         else:
@@ -1598,13 +1598,13 @@ async def show_sub(event, state: FSMContext = None):
                 days_left = (exp - now).days
                 if days_left > 3000:
                     text = (
-                        f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
-                        f"<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> <b>Бессрочная подписка</b>"
+                        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> <b>Бессрочная подписка</b>"
                     )
                 else:
                     text = (
-                        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка активна</b>\n\n"
-                        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
+                        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Истекает: <b>{exp.strftime('%d.%m.%Y %H:%M')}</b>\n"
                         f"⏳ Осталось: <b>{days_left} дн.</b>"
                     )
             else:
@@ -1644,12 +1644,12 @@ async def btn_connect(msg: Message, state: FSMContext = None):
 async def btn_cabinet(msg: Message, state: FSMContext = None):
     uid = msg.from_user.id
     if is_admin(uid):
-        text = "<tg-emoji emoji-id="5467406098367521267">👑</tg-emoji> <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
+        text = "<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
     else:
         sub = await get_subscription(uid)
         if not sub:
             text = (
-                f"<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <b>Подписка не активна</b>\n\n"
+                f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Подписка не активна</b>\n\n"
                 f"Оформите подписку чтобы начать использовать {BOT_NAME}."
             )
         else:
@@ -1661,21 +1661,21 @@ async def btn_cabinet(msg: Message, state: FSMContext = None):
                 days_left = (exp - now).days
                 if days_left > 3000:
                     text = (
-                        f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
                         f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                        f"<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Срок действия: <b>Навсегда</b>"
+                        f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок действия: <b>Навсегда</b>"
                     )
                 elif is_trial:
                     text = (
-                        f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Тестовый период</b>\n\n"
-                        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> Истекает: <b>{exp_str}</b>\n"
+                        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Тестовый период</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Истекает: <b>{exp_str}</b>\n"
                         f"⏳ Осталось: <b>{days_left} дн.</b>\n\n"
-                        f"<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <i>После окончания потребуется оформить подписку.</i>"
+                        f"<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> <i>После окончания потребуется оформить подписку.</i>"
                     )
                 else:
                     text = (
-                        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка активна</b>\n\n"
-                        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> Активна до: <b>{exp_str}</b>\n"
+                        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Активна до: <b>{exp_str}</b>\n"
                         f"⏳ Осталось: <b>{days_left} дн.</b>"
                     )
             else:
@@ -1701,25 +1701,25 @@ async def show_settings(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
     s = await get_user_settings(uid)
-    def ico(v): return "<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji>" if v else "<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji>"
+    def ico(v): return "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>" if v else "<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"🗑 Удалённые сообщения {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji>' if s['notify_delete'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji>'}",
+            text=f"🗑 Удалённые сообщения {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>' if s['notify_delete'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>'}",
             callback_data="toggle:notify_delete")],
         [InlineKeyboardButton(
-            text=f"✏️ Изменения сообщений {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji>' if s['notify_edit'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji>'}",
+            text=f"✏️ Изменения сообщений {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>' if s['notify_edit'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>'}",
             callback_data="toggle:notify_edit")],
         [InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id="5469654973308476699">📸</tg-emoji> Исчезающие медиа {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji>' if s['notify_self_destruct'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji>'}",
+            text=f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Исчезающие медиа {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>' if s['notify_self_destruct'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>'}",
             callback_data="toggle:notify_self_destruct")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
     ])
     text = (
         f"⚙️ <b>Настройки отслеживания</b>\n\n"
         f"Выберите функции, которые хотите использовать.\n\n"
-        f"{ico(s['notify_delete'])} {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji> Включено' if s['notify_delete'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> Выключено'} — Удалённые сообщения\n"
-        f"{ico(s['notify_edit'])} {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji> Включено' if s['notify_edit'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> Выключено'} — Изменения сообщений\n"
-        f"{ico(s['notify_self_destruct'])} {'<tg-emoji emoji-id="5267229058659264159">🟢</tg-emoji> Включено' if s['notify_self_destruct'] else '<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> Выключено'} — Исчезающие медиа"
+        f"{ico(s['notify_delete'])} {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Включено' if s['notify_delete'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> Выключено'} — Удалённые сообщения\n"
+        f"{ico(s['notify_edit'])} {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Включено' if s['notify_edit'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> Выключено'} — Изменения сообщений\n"
+        f"{ico(s['notify_self_destruct'])} {'<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Включено' if s['notify_self_destruct'] else '<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> Выключено'} — Исчезающие медиа"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=kb)
@@ -1730,7 +1730,7 @@ async def show_settings(event, state: FSMContext = None):
 @user_router.callback_query(F.data.startswith("toggle:"))
 async def cb_toggle(call: CallbackQuery):
     if not (await is_subscribed(call.from_user.id) or is_admin(call.from_user.id)):
-        return await call.answer("<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> Нужна активная подписка!", show_alert=True)
+        return await call.answer("<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Нужна активная подписка!", show_alert=True)
     await toggle_user_setting(call.from_user.id, call.data.split(":", 1)[1])
     await show_settings(call)
 
@@ -1763,9 +1763,9 @@ async def cb_activate(call: CallbackQuery):
     exp_str = exp.strftime("%d.%m.%Y")
     await call.answer()
     await call.message.answer(
-        f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Подписка активирована!</b>\n\n"
+        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Подписка активирована!</b>\n\n"
         f"⏳ Срок: <b>7 дней бесплатно</b>\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> Действует до: <b>{exp_str}</b>\n\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Действует до: <b>{exp_str}</b>\n\n"
         f"<i>По истечении потребуется оформить платную подписку.</i>",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -1802,22 +1802,22 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
     plan = PLANS.get(plan_key)
     if not plan: return await call.answer("Неизвестный тариф", show_alert=True)
 
-    plan_icons     = {"month": "<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji>", "three": "<tg-emoji emoji-id="5454063739512835879">📦</tg-emoji>", "year": "<tg-emoji emoji-id="5467406098367521267">👑</tg-emoji>"}
-    plan_discounts = {"month": "", "three": "  <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> скидка 15%", "year": "  <tg-emoji emoji-id="5420315771991497307">🔥</tg-emoji> скидка 29%"}
+    plan_icons     = {"month": "<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji>", "three": "<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji>", "year": "<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji>"}
+    plan_discounts = {"month": "", "three": "  <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> скидка 15%", "year": "  <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> скидка 29%"}
 
     try: await call.message.delete()
     except: pass
 
     await bot.send_message(uid,
-        f"<tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> <b>Оформление подписки</b>\n\n"
+        f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> <b>Оформление подписки</b>\n\n"
         f"{plan_icons.get(plan_key,'')} <b>Тариф:</b> {plan['label']}{plan_discounts.get(plan_key,'')}\n"
-        f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Стоимость:</b> {plan['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> Stars\n\n"
+        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> <b>Стоимость:</b> {plan['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> Stars\n\n"
         f"<b>Что входит:</b>\n"
         f"🗑 Удалённые сообщения\n"
         f"✏️ Редактирования\n"
         f"💣 Исчезающие медиа\n"
         f"📥 Скачивание файлов с таймером\n\n"
-        f"<tg-emoji emoji-id="5197288647275071607">🔒</tg-emoji> Оплата защищена Telegram",
+        f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата защищена Telegram",
         parse_mode="HTML"
     )
     await bot.send_invoice(
@@ -1851,20 +1851,20 @@ async def on_payment(msg: Message, bot: Bot):
     exp_dt   = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
     stars    = msg.successful_payment.total_amount
     await msg.answer(
-        f"<tg-emoji emoji-id="5436040291507247633">🎉</tg-emoji> <b>Доступ успешно активирован</b>\n\n"
+        f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Доступ успешно активирован</b>\n\n"
         f"Спасибо за поддержку ShadowSMSq ❤️\n\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> <b>Доступ открыт до: {exp_dt.strftime('%d.%m.%Y')}</b>\n\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>Доступ открыт до: {exp_dt.strftime('%d.%m.%Y')}</b>\n\n"
         f"Приятного использования!",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
         ])
     )
     await notify_admins(bot,
-        f"<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Новая оплата!</b>\n\n"
-        f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> {user_link(uid, msg.from_user.first_name, msg.from_user.username)}\n"
-        f"<tg-emoji emoji-id="5454063739512835879">📦</tg-emoji> Тариф: {plan['label']}\n"
-        f"<tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> Stars: {stars}\n"
-        f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> До: {exp_dt.strftime('%d.%m.%Y %H:%M')}")
+        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> <b>Новая оплата!</b>\n\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(uid, msg.from_user.first_name, msg.from_user.username)}\n"
+        f"<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji> Тариф: {plan['label']}\n"
+        f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> Stars: {stars}\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: {exp_dt.strftime('%d.%m.%Y %H:%M')}")
 
 @user_router.message(Command("settings"))
 async def cmd_settings(msg: Message):
@@ -1913,7 +1913,7 @@ async def check_expired_subscriptions(bot: Bot):
                 if is_admin(uid): continue
                 try:
                     await bot.send_message(uid,
-                        f"<tg-emoji emoji-id="5269560272418250579">🔴</tg-emoji> <b>Срок доступа истёк</b>\n\n"
+                        f"<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> <b>Срок доступа истёк</b>\n\n"
                         f"Отслеживание сообщений временно приостановлено.\n\n"
                         f"Чтобы продолжить использование ShadowSMSq, продлите доступ.",
                         parse_mode="HTML",
@@ -1930,7 +1930,7 @@ async def check_expired_subscriptions(bot: Bot):
 
 @admin_router.message(Command("admin"))
 async def cmd_admin(msg: Message, state: FSMContext):
-    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji> Нет доступа.")
+    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.")
     await state.clear()
     await msg.answer(
         f"👁 <b>{BOT_NAME} · Панель администратора</b>\n\nВыбери действие:",
@@ -1946,13 +1946,13 @@ async def adm_back(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data == "adm:prices")
 async def adm_prices(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     lines = "\n".join(
-        f"<b>{v['label']}</b>: {v['stars']} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> ({v['days']} дн.)"
+        f"<b>{v['label']}</b>: {v['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> ({v['days']} дн.)"
         for v in PLANS.values()
     )
     await safe_edit(call,
-        f"<tg-emoji emoji-id="5375296873982604963">💰</tg-emoji> <b>Текущие цены</b>\n\n{lines}\n\n"
+        f"<tg-emoji emoji-id=\"5375296873982604963\">💰</tg-emoji> <b>Текущие цены</b>\n\n{lines}\n\n"
         f"Введи новые цены в формате:\n"
         f"<code>month:35 three:89 year:299</code>\n\n"
         f"Можно изменить один тариф: <code>month:50</code>",
@@ -1983,15 +1983,15 @@ async def adm_set_price(msg: Message, state: FSMContext):
             if stars <= 0: raise ValueError
             PLANS[key]["stars"] = stars
             await save_price(key, stars)
-            updated.append(f"{PLANS[key]['label']}: {stars} <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji>")
+            updated.append(f"{PLANS[key]['label']}: {stars} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>")
         except ValueError:
             errors.append(f"{key}:{val} — неверное значение")
     await state.clear()
     result = ""
     if updated:
-        result += "<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Обновлено:</b>\n" + "\n".join(updated)
+        result += "<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Обновлено:</b>\n" + "\n".join(updated)
     if errors:
-        result += "\n<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <b>Ошибки:</b>\n" + "\n".join(errors)
+        result += "\n<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Ошибки:</b>\n" + "\n".join(errors)
     await msg.answer(result or "Ничего не изменено", parse_mode="HTML",
         reply_markup=admin_kb())
 
@@ -1999,11 +1999,11 @@ async def adm_set_price(msg: Message, state: FSMContext):
 
 @admin_router.callback_query(F.data == "adm:broadcast")
 async def adm_broadcast_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     users = await get_all_users()
     await safe_edit(call,
-        f"<tg-emoji emoji-id="5433811242135331842">📢</tg-emoji> <b>Рассылка</b>\n\n"
-        f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> Получателей: <b>{len(users)}</b> пользователей\n\n"
+        f"<tg-emoji emoji-id=\"5433811242135331842\">📢</tg-emoji> <b>Рассылка</b>\n\n"
+        f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> Получателей: <b>{len(users)}</b> пользователей\n\n"
         f"Отправь сообщение для рассылки.\n"
         f"Поддерживаются: текст, фото, видео, документ (с подписью или без).\n\n"
         f"<i>Отмена: /admin</i>",
@@ -2024,10 +2024,10 @@ async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
     failed = 0
 
     status_msg = await msg.answer(
-        f"<tg-emoji emoji-id="5433811242135331842">📢</tg-emoji> <b>Рассылка запущена...</b>\n\n"
-        f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> Всего: <b>{total}</b>\n"
-        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Отправлено: <b>0</b>\n"
-        f"<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> Ошибок: <b>0</b>",
+        f"<tg-emoji emoji-id=\"5433811242135331842\">📢</tg-emoji> <b>Рассылка запущена...</b>\n\n"
+        f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> Всего: <b>{total}</b>\n"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Отправлено: <b>0</b>\n"
+        f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Ошибок: <b>0</b>",
         parse_mode="HTML"
     )
 
@@ -2064,10 +2064,10 @@ async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
         if (i + 1) % 10 == 0:
             try:
                 await status_msg.edit_text(
-                    f"<tg-emoji emoji-id="5433811242135331842">📢</tg-emoji> <b>Рассылка...</b>\n\n"
-                    f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> Всего: <b>{total}</b>\n"
-                    f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Отправлено: <b>{sent}</b>\n"
-                    f"<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> Ошибок: <b>{failed}</b>",
+                    f"<tg-emoji emoji-id=\"5433811242135331842\">📢</tg-emoji> <b>Рассылка...</b>\n\n"
+                    f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> Всего: <b>{total}</b>\n"
+                    f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Отправлено: <b>{sent}</b>\n"
+                    f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Ошибок: <b>{failed}</b>",
                     parse_mode="HTML"
                 )
             except Exception:
@@ -2078,10 +2078,10 @@ async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
 
     try:
         await status_msg.edit_text(
-            f"<tg-emoji emoji-id="5433811242135331842">📢</tg-emoji> <b>Рассылка завершена!</b>\n\n"
-            f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> Всего: <b>{total}</b>\n"
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Доставлено: <b>{sent}</b>\n"
-            f"<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> Не доставлено: <b>{failed}</b>",
+            f"<tg-emoji emoji-id=\"5433811242135331842\">📢</tg-emoji> <b>Рассылка завершена!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> Всего: <b>{total}</b>\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Доставлено: <b>{sent}</b>\n"
+            f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Не доставлено: <b>{failed}</b>",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:back")]
@@ -2092,7 +2092,7 @@ async def adm_broadcast_send(msg: Message, state: FSMContext, bot: Bot):
 
 @admin_router.callback_query(F.data == "adm:stats")
 async def adm_stats(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     users     = await get_all_users()
     subs      = await get_all_subscriptions()
     now       = datetime.now()
@@ -2100,39 +2100,39 @@ async def adm_stats(call: CallbackQuery):
     biz_count = len(_biz_owners)
     tgt_count = len(_targets)
     await safe_edit(call,
-        f"<tg-emoji emoji-id="5431577498364158238">📊</tg-emoji> <b>Статистика {BOT_NAME}</b>\n\n"
-        f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> Всего пользователей: <b>{len(users)}</b>\n"
-        f"<tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> Активных подписок: <b>{len(active)}</b>\n"
+        f"<tg-emoji emoji-id=\"5431577498364158238\">📊</tg-emoji> <b>Статистика {BOT_NAME}</b>\n\n"
+        f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> Всего пользователей: <b>{len(users)}</b>\n"
+        f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> Активных подписок: <b>{len(active)}</b>\n"
         f"📋 Всего выдано: <b>{len(subs)}</b>\n"
-        f"<tg-emoji emoji-id="5310278924616356636">🔗</tg-emoji> Подключений: <b>{biz_count}</b>\n"
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> Активных таргетов: <b>{tgt_count}</b>",
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> Подключений: <b>{biz_count}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> Активных таргетов: <b>{tgt_count}</b>",
         reply_markup=adm_back_kb())
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:users")
 async def adm_users(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     users = await get_all_users()
     if not users:
         return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
-    lines = [f"<tg-emoji emoji-id="5372926953978341366">👥</tg-emoji> <b>Пользователи</b> ({len(users)}):\n"]
+    lines = [f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> <b>Пользователи</b> ({len(users)}):\n"]
     for u in users[:50]:
         uname = f"@{u['username']}" if u['username'] else "—"
-        tgt   = " <tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji>" if is_target(u["user_id"]) else ""
+        tgt   = " <tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji>" if is_target(u["user_id"]) else ""
         reg   = u.get("registered", "")[:10] if u.get("registered") else "—"
-        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | <tg-emoji emoji-id="5274055917766202507">📅</tg-emoji>{reg}{tgt}")
+        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji>{reg}{tgt}")
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:subs")
 async def adm_subs(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     subs = await get_all_subscriptions()
     now  = datetime.now()
     active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
     if not active:
         return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
-    lines = [f"<tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> <b>Активные подписки</b>:\n"]
+    lines = [f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> <b>Активные подписки</b>:\n"]
     for s in active:
         exp = datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - now).days
@@ -2148,19 +2148,19 @@ async def adm_subs(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:targets")
 async def adm_targets(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     targets = await get_all_targets()
     text = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
         if targets else
-        "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргеты</b>\n\nСписок пуст. Нажми кнопку ниже чтобы добавить."
+        "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b>\n\nСписок пуст. Нажми кнопку ниже чтобы добавить."
     )
     await safe_edit(call, text, reply_markup=targets_list_kb(targets))
     await call.answer()
 
 @admin_router.callback_query(F.data.startswith("tgt:view:"))
 async def tgt_view(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     uid = int(call.data.split(":")[2])
     t = await get_target(uid)
     if not t:
@@ -2169,17 +2169,17 @@ async def tgt_view(call: CallbackQuery):
     name  = t.get("first_name") or "—"
     uname = f" (@{t['username']})" if t.get("username") else ""
     text  = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргет: {name}{uname}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргет: {name}{uname}</b>\n"
         f"🆔 <code>{uid}</code>\n\n"
         f"Настрой что именно приходит от этого пользователя:\n\n"
-        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> включено · <tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> выключено"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> включено · <tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> выключено"
     )
     await safe_edit(call, text, reply_markup=target_detail_kb(t))
     await call.answer()
 
 @admin_router.callback_query(F.data.startswith("tgt:toggle:"))
 async def tgt_toggle(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     parts = call.data.split(":")
     uid   = int(parts[2])
     field = parts[3]
@@ -2189,31 +2189,31 @@ async def tgt_toggle(call: CallbackQuery):
     name  = t.get("first_name") or "—"
     uname = f" (@{t['username']})" if t.get("username") else ""
     text  = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргет: {name}{uname}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргет: {name}{uname}</b>\n"
         f"🆔 <code>{uid}</code>\n\n"
         f"Настрой что именно приходит от этого пользователя:\n\n"
-        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> включено · <tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> выключено"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> включено · <tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> выключено"
     )
     await safe_edit(call, text, reply_markup=target_detail_kb(t))
-    await call.answer("<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Сохранено")
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Сохранено")
 
 @admin_router.callback_query(F.data.startswith("tgt:del:"))
 async def tgt_delete(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     uid = int(call.data.split(":")[2])
     await remove_target(uid)
-    await call.answer("<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Таргет удалён", show_alert=True)
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет удалён", show_alert=True)
     targets = await get_all_targets()
     text = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b> ({len(targets)})\n\nВыбери таргет для настройки:"
         if targets else
-        "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргеты</b>\n\nСписок пуст."
+        "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргеты</b>\n\nСписок пуст."
     )
     await safe_edit(call, text, reply_markup=targets_list_kb(targets))
 
 @admin_router.callback_query(F.data == "tgt:add")
 async def tgt_add_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     await state.set_state(AdminStates.waiting_target_id)
     users = await get_all_users()
     # Оставляем только тех, кто подключил бота в автоматизацию
@@ -2225,7 +2225,7 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
         for u in connected[:20]:
             name    = u.get("first_name") or "—"
             uname   = f" @{u['username']}" if u.get("username") else ""
-            already = "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> " if is_target(u["user_id"]) else ""
+            already = "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> " if is_target(u["user_id"]) else ""
             rows.append([InlineKeyboardButton(
                 text=f"{already}{name}{uname} [{u['user_id']}]",
                 callback_data=f"tgt:pick:{u['user_id']}"
@@ -2233,14 +2233,14 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
         rows.append([InlineKeyboardButton(text="✏️ Ввести ID вручную", callback_data="tgt:manual")])
         rows.append([InlineKeyboardButton(text="◀️ Назад",             callback_data="adm:targets")])
         await safe_edit(call,
-            f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Выбери пользователя из списка:</b>\n\n"
+            f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Выбери пользователя из списка:</b>\n\n"
             f"Показаны только пользователи с подключённым ботом ({len(connected)})\n"
-            f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> = уже таргет",
+            f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> = уже таргет",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
     else:
         await safe_edit(call,
-            "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Добавить таргет</b>\n\n"
-            "<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> Нет пользователей с подключённым ботом в автоматизацию.\n\n"
+            "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Добавить таргет</b>\n\n"
+            "<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> Нет пользователей с подключённым ботом в автоматизацию.\n\n"
             "Когда кто-то подключит бота — он появится здесь.\n"
             "Либо введи ID вручную:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -2251,10 +2251,10 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data == "tgt:manual")
 async def tgt_manual(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     await state.set_state(AdminStates.waiting_target_id)
     await safe_edit(call,
-        "<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Добавить таргет</b>\n\nВведи Telegram ID пользователя:\n<i>Отмена: /admin</i>",
+        "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Добавить таргет</b>\n\nВведи Telegram ID пользователя:\n<i>Отмена: /admin</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:targets")]
         ]))
@@ -2262,10 +2262,10 @@ async def tgt_manual(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data.startswith("tgt:pick:"))
 async def tgt_pick(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     uid = int(call.data.split(":")[2])
     if not has_biz_connection(uid):
-        await call.answer("<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> Пользователь отключил бота от автоматизации", show_alert=True)
+        await call.answer("<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> Пользователь отключил бота от автоматизации", show_alert=True)
         return
     await state.clear()
     await add_target(uid, call.from_user.id)
@@ -2273,12 +2273,12 @@ async def tgt_pick(call: CallbackQuery, state: FSMContext):
     name  = t.get("first_name") or "—" if t else "—"
     uname = f" (@{t['username']})" if t and t.get("username") else ""
     text  = (
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргет добавлен: {name}{uname}</b>\n"
         f"🆔 <code>{uid}</code>\n\n"
         f"Настрой что именно приходит:"
     )
     await safe_edit(call, text, reply_markup=target_detail_kb(t) if t else adm_back_kb())
-    await call.answer("<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Таргет добавлен!")
+    await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Таргет добавлен!")
 
 @admin_router.message(AdminStates.waiting_target_id)
 async def tgt_add_id(msg: Message, state: FSMContext):
@@ -2290,7 +2290,7 @@ async def tgt_add_id(msg: Message, state: FSMContext):
     # Проверяем что пользователь добавил бота в автоматизацию
     if not has_biz_connection(uid):
         return await msg.answer(
-            f"<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>Пользователь не подключён</b>\n\n"
+            f"<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> <b>Пользователь не подключён</b>\n\n"
             f"ID <code>{uid}</code> не добавил бота в автоматизацию чатов.\n\n"
             f"Таргетить можно только тех, у кого бот подключён как бизнес-бот.",
             parse_mode="HTML"
@@ -2301,7 +2301,7 @@ async def tgt_add_id(msg: Message, state: FSMContext):
     name  = t.get("first_name") or f"ID {uid}" if t else f"ID {uid}"
     uname = f" (@{t['username']})" if t and t.get("username") else ""
     await msg.answer(
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргет добавлен: {name}{uname}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргет добавлен: {name}{uname}</b>\n"
         f"🆔 <code>{uid}</code>\n\n"
         f"Настройки: /admin → Таргеты",
         parse_mode="HTML"
@@ -2309,23 +2309,23 @@ async def tgt_add_id(msg: Message, state: FSMContext):
 
 @admin_router.message(Command("target"))
 async def cmd_target(msg: Message):
-    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji> Нет доступа.")
+    if not is_admin(msg.from_user.id): return await msg.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> Нет доступа.")
     parts = msg.text.strip().split()
     if len(parts) < 2:
-        return await msg.answer("<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> Используй панель: /admin → Таргеты")
+        return await msg.answer("<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> Используй панель: /admin → Таргеты")
     try:
         target_uid = int(parts[1])
     except ValueError:
         return await msg.answer("❗ ID должен быть числом.")
     if not has_biz_connection(target_uid):
         return await msg.answer(
-            f"<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>Пользователь не подключён</b>\n\n"
+            f"<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> <b>Пользователь не подключён</b>\n\n"
             f"ID <code>{target_uid}</code> не добавил бота в автоматизацию чатов.",
             parse_mode="HTML"
         )
     await add_target(target_uid, msg.from_user.id)
     await msg.answer(
-        f"<tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji> <b>Таргет добавлен!</b>\n🆔 <code>{target_uid}</code>\n\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>Таргет добавлен!</b>\n🆔 <code>{target_uid}</code>\n\n"
         f"Настройки: /admin → Таргеты",
         parse_mode="HTML"
     )
@@ -2334,10 +2334,10 @@ async def cmd_target(msg: Message):
 
 @admin_router.callback_query(F.data == "adm:grant")
 async def adm_grant_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     await state.set_state(AdminStates.waiting_user_id)
     await safe_edit(call,
-        "<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
+        "<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Выдача подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_user_id)
@@ -2354,11 +2354,11 @@ async def adm_grant_id(msg: Message, state: FSMContext):
         [InlineKeyboardButton(text="1 год",      callback_data="days:365"),
          InlineKeyboardButton(text="♾ Навсегда", callback_data="days:9999")],
     ])
-    await msg.answer(f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb)
+    await msg.answer(f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb)
 
 @admin_router.callback_query(F.data.startswith("days:"))
 async def adm_grant_days(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     days = int(call.data.split(":")[1])
     data = await state.get_data()
     uid  = data.get("target_user_id")
@@ -2371,32 +2371,32 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
     is_forever = (days == 9999)
     if is_forever:
         await safe_edit(call,
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Бессрочная подписка выдана!</b>\n\n"
-            f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> ID: <code>{uid}</code>\n"
-            f"<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Срок: <b>Бессрочно</b>",
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Бессрочная подписка выдана!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
+            f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок: <b>Бессрочно</b>",
             reply_markup=adm_back_kb())
-        await call.answer("<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Готово!")
+        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!")
         try:
             await call.bot.send_message(uid,
-                f"<tg-emoji emoji-id="5199749007083019756">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
                 f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                f"<tg-emoji emoji-id="5222270307372375291">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
+                f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start 👁</i>",
                 parse_mode="HTML")
         except: pass
     else:
         await safe_edit(call,
-            f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
-            f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> ID: <code>{uid}</code>\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
             f"⏳ Срок: <b>{days} дн.</b>\n"
-            f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
             reply_markup=adm_back_kb())
-        await call.answer("<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Готово!")
+        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!")
         try:
             await call.bot.send_message(uid,
-                f"<tg-emoji emoji-id="5436040291507247633">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
                 f"⏳ Срок: <b>{days} дн.</b>\n"
-                f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
                 f"<i>Используй /start 👁</i>",
                 parse_mode="HTML")
         except: pass
@@ -2415,24 +2415,24 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
     await msg.answer(
-        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
-        f"<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> ID: <code>{uid}</code>\n"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
         f"⏳ {days} дн. · до {exp_dt.strftime('%d.%m.%Y %H:%M')}",
         reply_markup=adm_back_kb())
     try:
         await msg.bot.send_message(uid,
-            f"<tg-emoji emoji-id="5436040291507247633">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
             f"⏳ Срок: <b>{days} дн.</b>\n"
-            f"<tg-emoji emoji-id="5274055917766202507">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
             parse_mode="HTML")
     except: pass
 
 @admin_router.callback_query(F.data == "adm:revoke")
 async def adm_revoke_start(call: CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id="5260293700088511294">⛔</tg-emoji>", show_alert=True)
+    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True)
     await state.set_state(AdminStates.waiting_revoke)
     await safe_edit(call,
-        "<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
+        "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Отзыв подписки</b>\n\nВведи <b>Telegram ID</b> пользователя:\n<i>Отмена: /admin</i>")
     await call.answer()
 
 @admin_router.message(AdminStates.waiting_revoke)
@@ -2443,7 +2443,7 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
     await revoke_subscription(uid)
     await state.clear()
     await msg.answer(
-        f"<tg-emoji emoji-id="5427009714745517609">✅</tg-emoji> Подписка пользователя <code>{uid}</code> отозвана.",
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Подписка пользователя <code>{uid}</code> отозвана.",
         reply_markup=adm_back_kb())
 
 # ══════════════════════════════════════════════
@@ -2458,8 +2458,8 @@ async def main():
     await restore_biz_connections()
     await restore_targets()
     await bot.set_my_commands([
-        BotCommand(command="connect",  description="<tg-emoji emoji-id="5431449001532594346">⚡️</tg-emoji> Подключить бота"),
-        BotCommand(command="cabinet",  description="<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> Личный кабинет"),
+        BotCommand(command="connect",  description="<tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> Подключить бота"),
+        BotCommand(command="cabinet",  description="<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Личный кабинет"),
         BotCommand(command="help",     description="❓ Инструкция"),
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
