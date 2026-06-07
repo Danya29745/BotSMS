@@ -1430,13 +1430,18 @@ async def cmd_start(msg: Message, state: FSMContext):
 
     try:
         if photo_source is not None:
-            # Отправляем фото без caption
-            sent = await msg.answer_photo(photo=photo_source)
+            # Фото + текст одним сообщением через caption
+            sent = await msg.answer_photo(
+                photo=photo_source,
+                caption=text,
+                reply_markup=start_kb(u.id),
+                parse_mode="HTML"
+            )
             # Кэшируем Telegram file_id после первой успешной загрузки
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
-        # Текст с tg-emoji отдельным сообщением (caption не поддерживает tg-emoji)
-        await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
+        else:
+            await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
         await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
