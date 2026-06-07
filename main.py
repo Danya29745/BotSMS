@@ -2234,43 +2234,66 @@ async def adm_subs(call: CallbackQuery):
 @admin_router.callback_query(F.data == "adm:connections")
 async def adm_connections(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
-    biz_uids = set(_biz_owners.values())
-    if not biz_uids:
+
+    # Читаем из БД — там все кто когда-либо подключал бота
+    def _get_all_connections():
+        c = _conn()
+        rows = c.execute("""
+            SELECT bc.owner_id, bc.connected_at,
+                   u.first_name, u.username,
+                   s.expires_at
+            FROM business_connections bc
+            LEFT JOIN users u ON u.user_id = bc.owner_id
+            LEFT JOIN subscriptions s ON s.user_id = bc.owner_id
+            GROUP BY bc.owner_id
+            ORDER BY bc.connected_at DESC
+        """).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    import asyncio as _aio
+    rows = await _aio.get_event_loop().run_in_executor(None, _get_all_connections)
+
+    if not rows:
         return await safe_edit(call,
-            "🔗 <b>Подключения к Автоматизации</b>\n\nНикто не подключён.",
+            "<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> <b>Подключения к Автоматизации</b>\n\nНикто не подключён.",
             reply_markup=adm_back_kb())
 
-    users = await get_all_users()
-    user_map = {u["user_id"]: u for u in users}
+    from datetime import datetime as _dt
+    now = _dt.now()
+    lines = [f"<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> <b>Подключено к Автоматизации</b> ({len(rows)}):\n"]
 
-    lines = [f"🔗 <b>Подключено к Автоматизации</b> ({len(biz_uids)}):\n"]
-    for uid in sorted(biz_uids):
-        u = user_map.get(uid)
-        if u:
-            name  = u.get("first_name") or "—"
-            uname = f"@{u['username']}" if u.get("username") else "—"
-        else:
-            name, uname = "—", "—"
-        sub_mark = ""
+    for r in rows:
+        uid   = r["owner_id"]
+        name  = r.get("first_name") or "—"
+        uname = f"@{r['username']}" if r.get("username") else "—"
+        conn_date = r.get("connected_at", "")[:10] if r.get("connected_at") else "—"
+
         if is_admin(uid):
-            sub_mark = " 👑"
+            sub_mark = " <tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji>"
+        elif r.get("expires_at"):
+            exp = _dt.strptime(r["expires_at"], "%Y-%m-%d %H:%M:%S")
+            if exp > now:
+                days_left = (exp - now).days
+                sub_mark = f" <tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> до {exp.strftime('%d.%m.%Y')} ({days_left}д)"
+            else:
+                sub_mark = " <tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> истекла"
         else:
-            # проверяем подписку синхронно через кеш
-            from datetime import datetime as _dt
-            def _check_sub(u=uid):
-                c = _conn()
-                row = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?", (u,)).fetchone()
-                c.close()
-                if not row: return False
-                return _dt.strptime(row["expires_at"], "%Y-%m-%d %H:%M:%S") > _dt.now()
-            import asyncio as _aio
-            has_sub = await _aio.get_event_loop().run_in_executor(None, _check_sub)
-            sub_mark = " ✅" if has_sub else " ❌"
-        tgt_mark = " 🎯" if is_target(uid) else ""
-        lines.append(f"• <code>{uid}</code> | {name} | {uname}{sub_mark}{tgt_mark}")
+            sub_mark = " <tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> нет подписки"
 
-    lines.append("\n<i>✅ — есть подписка  ❌ — нет подписки  🎯 — таргет  👑 — админ</i>")
-    await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
+        # Активно ли прямо сейчас
+        is_active = uid in set(_biz_owners.values())
+        active_mark = " <tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>" if is_active else " <tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>"
+        tgt_mark = " <tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji>" if is_target(uid) else ""
+
+        lines.append(
+            f"{active_mark} <code>{uid}</code> | {name} | {uname}\n"
+            f"   {sub_mark}{tgt_mark} | подключён: {conn_date}"
+        )
+
+    lines.append("\n<i>🟢 активен сейчас  🔴 отключён  ✅ есть подписка  ❌ нет</i>")
+    text = "\n".join(lines)
+    await safe_edit(call, text, reply_markup=adm_back_kb())
     await call.answer()
 
 # ── Таргеты ──
@@ -2527,12 +2550,13 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
         parse_mode="HTML")
         try:
             await call.bot.send_message(uid,
-                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
+                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
                 f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
                 f"<tg-emoji emoji-id=\"5305624563046948807\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
-                f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
+                f"<i>Используй /start</i>",
                 parse_mode="HTML")
-        except: pass
+        except Exception as ex:
+            logger.warning(f"Не удалось отправить уведомление о бессрочной подписке {uid}: {ex}")
     else:
         await safe_edit(call,
             f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
