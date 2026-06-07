@@ -514,7 +514,10 @@ def reply_kb():
     )
 
 def start_kb(uid: int = None):
-    buttons = [[InlineKeyboardButton(text="⚡️ Перейти в Автоматизацию", url="tg://settings/edit")]]
+    buttons = [
+        [InlineKeyboardButton(text="⚡️ Перейти в Автоматизацию", url="tg://settings/edit")],
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
@@ -1790,26 +1793,19 @@ async def demo_edited(call: CallbackQuery):
 
 @user_router.callback_query(F.data == "demo:media")
 async def demo_media(call: CallbackQuery, bot: Bot):
-    uid = call.from_user.id
-    # Шаг 1: отправляем инструкцию про исчезающее медиа
+    now_str = _now_str()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ])
     text_step1 = (
         f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Пример: Исчезающее медиа</b>\n\n"
         f"Представь, что тебе прислали исчезающее фото.\n\n"
         f"<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> <b>Не открывай сразу!</b> Файл исчезнет.\n\n"
         f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Чтобы сохранить:</b>\n"
         f"Нажми и удержи → <b>Ответить</b> → напиши: <code>!!</code> или <code>🔥</code>\n\n"
-        f"После этого бот скачает и пришлёт тебе файл.\n\n"
-        f"<i>Ответь на это сообщение <code>!!</code> или 🔥 чтобы увидеть пример уведомления:</i>"
+        f"Бот скачает файл и пришлёт тебе уведомление:"
     )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
-    ])
-    sent = await call.message.answer(text_step1, reply_markup=kb, parse_mode="HTML")
-    await call.answer()
-    # Шаг 2: отправляем шаблон уведомления как будто бот скачал медиа
-    import asyncio
-    await asyncio.sleep(1)
-    now_str = _now_str()
+    await call.message.answer(text_step1, reply_markup=kb, parse_mode="HTML")
     text_step2 = (
         f"<tg-emoji emoji-id=\"5433811242135331842\">📥</tg-emoji> <b>Скачанное фото</b>\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: <a href=\"tg://user?id=123456\">Пример Пользователь</a>\n"
@@ -1817,10 +1813,8 @@ async def demo_media(call: CallbackQuery, bot: Bot):
         f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Исчезающее медиа перехвачено!</b>\n\n"
         f"<i>— это шаблон уведомления когда бот скачал исчезающее медиа</i>"
     )
-    kb2 = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
-    ])
-    await call.message.answer(text_step2, reply_markup=kb2, parse_mode="HTML")
+    await call.message.answer(text_step2, reply_markup=kb, parse_mode="HTML")
+    await call.answer()
 
 # ── Покупка ──
 
@@ -1906,6 +1900,11 @@ async def cmd_sub(msg: Message):
 @user_router.message(Command("connect"))
 async def cmd_connect(msg: Message, state: FSMContext):
     await btn_connect(msg, state)
+
+
+@user_router.message(Command("cabinet"))
+async def cmd_cabinet(msg: Message, state: FSMContext):
+    await cb_main(msg, state)
 
 
 @user_router.message(Command("help"))
@@ -2517,8 +2516,9 @@ async def main():
     await restore_biz_connections()
     await restore_targets()
     await bot.set_my_commands([
-        BotCommand(command="connect",  description="<tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> Подключить бота"),
-        BotCommand(command="help",     description="<tg-emoji emoji-id=\"5436113877181941026\">❓</tg-emoji> Инструкция"),
+        BotCommand(command="connect",  description="⚡️ Подключить бота"),
+        BotCommand(command="cabinet",  description="👤 Личный кабинет"),
+        BotCommand(command="help",     description="❓ Инструкция"),
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
