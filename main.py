@@ -361,6 +361,14 @@ async def mark_trial_used(uid):
         c.commit(); c.close()
     await _run(_f)
 
+async def get_all_trial_used() -> set:
+    def _f():
+        c = _conn()
+        rows = c.execute("SELECT user_id FROM trial_used").fetchall()
+        c.close()
+        return {r["user_id"] for r in rows}
+    return await _run(_f)
+
 async def cache_message(chat_id, message_id, user_id, username, first_name,
                         text=None, media_type=None, file_id=None,
                         owner_id=None, is_view_once=False):
@@ -559,6 +567,7 @@ def admin_kb():
         [InlineKeyboardButton(text="⭐ Подписки",      callback_data="adm:subs")],
         [InlineKeyboardButton(text="✅ Выдать",        callback_data="adm:grant"),
          InlineKeyboardButton(text="❌ Отозвать",      callback_data="adm:revoke")],
+        [InlineKeyboardButton(text="🔗 Подключения",   callback_data="adm:connections")],
         [InlineKeyboardButton(text="🎯 Таргеты",       callback_data="adm:targets")],
         [InlineKeyboardButton(text="📊 Статистика",    callback_data="adm:stats")],
         [InlineKeyboardButton(text="💰 Изменить цены", callback_data="adm:prices")],
@@ -585,7 +594,7 @@ def targets_list_kb(targets: list) -> InlineKeyboardMarkup:
 
 def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
     uid = t["target_user_id"]
-    def icon(val): return "<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji>" if val else "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji>"
+    def icon(val): return "✅" if val else "❌"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=f"{icon(t.get('notify_messages',1))} Сообщения",
@@ -2157,22 +2166,105 @@ async def adm_users(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:subs")
 async def adm_subs(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
-        parse_mode="HTML")
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     subs = await get_all_subscriptions()
-    now  = datetime.now()
-    active = [s for s in subs if datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S") > now]
-    if not active:
-        return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
-    lines = [f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> <b>Активные подписки</b>:\n"]
-    for s in active:
+    trial_uids = await get_all_trial_used()
+    now = datetime.now()
+    ADMIN_IDS_SET = set(ADMIN_IDS)
+
+    trial_list    = []  # тестовый период
+    bought_list   = []  # куплено через Stars
+    granted_list  = []  # выдано админом
+
+    for s in subs:
         exp = datetime.strptime(s["expires_at"], "%Y-%m-%d %H:%M:%S")
+        if exp <= now:
+            continue  # пропускаем истёкшие
+        uid = s["user_id"]
         days_left = (exp - now).days
+        exp_str = exp.strftime("%d.%m.%Y")
         uname = f"@{s['username']}" if s.get("username") else "—"
-        lines.append(
-            f"• <code>{s['user_id']}</code> | {s.get('first_name') or '—'} | {uname}\n"
-            f"  До: <b>{exp.strftime('%d.%m.%Y')}</b> ({days_left} дн.)"
-        )
+        name  = s.get("first_name") or "—"
+        gb    = s.get("granted_by", 0) or 0
+
+        if gb != 0 and gb in ADMIN_IDS_SET:
+            # Выдан вручную администратором
+            granted_list.append((uid, name, uname, exp_str, days_left))
+        elif uid in trial_uids and days_left <= 7 and gb == 0:
+            # Тестовый период (7 дней, granted_by=0, есть в trial_used)
+            trial_list.append((uid, name, uname, exp_str, days_left))
+        else:
+            # Куплено через Telegram Stars
+            bought_list.append((uid, name, uname, exp_str, days_left))
+
+    total = len(trial_list) + len(bought_list) + len(granted_list)
+    if total == 0:
+        return await safe_edit(call, "Активных подписок нет.", reply_markup=adm_back_kb())
+
+    lines = [f"⭐ <b>Активные подписки</b> ({total}):\n"]
+
+    if trial_list:
+        lines.append(f"🆓 <b>Тестовый период</b> ({len(trial_list)}):")
+        for uid, name, uname, exp_str, days_left in trial_list:
+            lines.append(f"  • <code>{uid}</code> | {name} | {uname} | до <b>{exp_str}</b> ({days_left} дн.)")
+        lines.append("")
+
+    if bought_list:
+        lines.append(f"💳 <b>Куплено</b> ({len(bought_list)}):")
+        for uid, name, uname, exp_str, days_left in bought_list:
+            icon = "♾" if days_left > 3000 else f"{days_left} дн."
+            lines.append(f"  • <code>{uid}</code> | {name} | {uname} | до <b>{exp_str}</b> ({icon})")
+        lines.append("")
+
+    if granted_list:
+        lines.append(f"👑 <b>Выдано админом</b> ({len(granted_list)}):")
+        for uid, name, uname, exp_str, days_left in granted_list:
+            icon = "♾" if days_left > 3000 else f"{days_left} дн."
+            lines.append(f"  • <code>{uid}</code> | {name} | {uname} | до <b>{exp_str}</b> ({icon})")
+
+    await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
+    await call.answer()
+
+
+@admin_router.callback_query(F.data == "adm:connections")
+async def adm_connections(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    biz_uids = set(_biz_owners.values())
+    if not biz_uids:
+        return await safe_edit(call,
+            "🔗 <b>Подключения к Автоматизации</b>\n\nНикто не подключён.",
+            reply_markup=adm_back_kb())
+
+    users = await get_all_users()
+    user_map = {u["user_id"]: u for u in users}
+
+    lines = [f"🔗 <b>Подключено к Автоматизации</b> ({len(biz_uids)}):\n"]
+    for uid in sorted(biz_uids):
+        u = user_map.get(uid)
+        if u:
+            name  = u.get("first_name") or "—"
+            uname = f"@{u['username']}" if u.get("username") else "—"
+        else:
+            name, uname = "—", "—"
+        sub_mark = ""
+        if is_admin(uid):
+            sub_mark = " 👑"
+        else:
+            # проверяем подписку синхронно через кеш
+            from datetime import datetime as _dt
+            def _check_sub(u=uid):
+                c = _conn()
+                row = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?", (u,)).fetchone()
+                c.close()
+                if not row: return False
+                return _dt.strptime(row["expires_at"], "%Y-%m-%d %H:%M:%S") > _dt.now()
+            import asyncio as _aio
+            has_sub = await _aio.get_event_loop().run_in_executor(None, _check_sub)
+            sub_mark = " ✅" if has_sub else " ❌"
+        tgt_mark = " 🎯" if is_target(uid) else ""
+        lines.append(f"• <code>{uid}</code> | {name} | {uname}{sub_mark}{tgt_mark}")
+
+    lines.append("\n<i>✅ — есть подписка  ❌ — нет подписки  🎯 — таргет  👑 — админ</i>")
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
     await call.answer()
 
@@ -2264,7 +2356,7 @@ async def tgt_add_start(call: CallbackQuery, state: FSMContext):
         for u in connected[:20]:
             name    = u.get("first_name") or "—"
             uname   = f" @{u['username']}" if u.get("username") else ""
-            already = "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> " if is_target(u["user_id"]) else ""
+            already = "🎯 " if is_target(u["user_id"]) else ""
             rows.append([InlineKeyboardButton(
                 text=f"{already}{name}{uname} [{u['user_id']}]",
                 callback_data=f"tgt:pick:{u['user_id']}"
