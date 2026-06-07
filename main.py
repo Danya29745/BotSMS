@@ -623,8 +623,8 @@ START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"Добро пожаловать в ShadowSMSq_bot <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji>\n"
-        f"<b>{first_name}</b>, я перехватываю то, что другие пытаются скрыть.\n\n"
+        f"<b>Добро пожаловать в ShadowSMSq_bot <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n"
+        f"<i>{first_name}, я перехватываю то, что другие пытаются скрыть.</i>\n\n"
         f"<b>Возможности бота:</b>\n"
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
