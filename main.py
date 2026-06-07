@@ -908,18 +908,16 @@ START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Добро пожаловать в ShadowSMSq_bot</b>\n"
+        f"👁 <b>Добро пожаловать в ShadowSMSq</b>\n"
         f"<i>{first_name}, я перехватываю то, что другие пытаются скрыть.</i>\n\n"
         f"<b>Возможности бота:</b>\n"
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
         f"<b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code>\n"
-        f"<tg-emoji emoji-id=\"5852777596688797905\">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
+        f"1. Скопируйте Username бота:\n<code>@{BOT_USERNAME}</code> ◀ нажми чтобы скопировать\n\n"
         f"2. Перейдите в ⚡️ <b>Автоматизацию чатов</b>\n\n"
         f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code>\n\n"
-        f"Бот сам пришлёт уведомление после подключения. "
-        f"<tg-emoji emoji-id=\"5449505950283078474\">сердце</tg-emoji>"
+        f"Бот сам пришлёт уведомление после подключения. ❤"
     )
 
 HELP_TEXT = (
@@ -2610,7 +2608,7 @@ async def adm_users_page(call: CallbackQuery, page: int = 0):
         uname = f"@{u['username']}" if u['username'] else "—"
         tgt   = " <tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji>" if is_target(u["user_id"]) else ""
         reg   = u.get("registered", "")[:10] if u.get("registered") else "—"
-        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji>{reg}{tgt}")
+        lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | 📅{reg}{tgt}")
 
     nav_buttons = []
     if page > 0:
