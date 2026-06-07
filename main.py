@@ -515,7 +515,7 @@ def reply_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="⚡️ Подключить бота"), KeyboardButton(text="💳 Тарифы")],
-            [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="⚙️ Настройки")],
+            [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="🔔 Уведомления")],
             [KeyboardButton(text="❓ Инструкция")],
         ],
         resize_keyboard=True, persistent=True
@@ -530,10 +530,9 @@ def start_kb(uid: int = None):
 
 def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 Тарифы",      callback_data="u:plans"),
-         InlineKeyboardButton(text="⚙️ Настройки",  callback_data="u:settings")],
-        [InlineKeyboardButton(text="📊 Активность",  callback_data="u:activity"),
-         InlineKeyboardButton(text="📖 Как работает бот", callback_data="u:help")],
+        [InlineKeyboardButton(text="💎 Тарифы",        callback_data="u:plans"),
+         InlineKeyboardButton(text="🔔 Уведомления",  callback_data="u:settings")],
+        [InlineKeyboardButton(text="🟢 Как работает бот?", callback_data="u:help")],
         [InlineKeyboardButton(text="◀️ Назад",       callback_data="u:back_start")],
     ])
 
@@ -624,8 +623,8 @@ START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"Добро пожаловать, <b>{first_name}</b> <tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>\n"
-        f"<i>Перехватываю то, что другие пытаются скрыть.</i>\n\n"
+        f"Добро пожаловать в ShadowSMSq_bot <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji>\n"
+        f"<b>{first_name}</b>, я перехватываю то, что другие пытаются скрыть.\n\n"
         f"<b>Возможности бота:</b>\n"
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
@@ -1661,7 +1660,7 @@ async def btn_connect(msg: Message, state: FSMContext = None):
 # ── Настройки ──
 
 @user_router.callback_query(F.data == "u:settings")
-@user_router.message(F.text == "⚙️ Настройки")
+@user_router.message(F.text == "🔔 Уведомления")
 async def show_settings(event, state: FSMContext = None):
     is_call = isinstance(event, CallbackQuery)
     uid = event.from_user.id
