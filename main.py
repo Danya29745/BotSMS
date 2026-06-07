@@ -645,23 +645,29 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 async def send_section(event, text: str, kb, photo_id: str = ""):
-    """Отправляет раздел с фото в caption — фото не плодится в чате."""
+    """Редактирует caption существующего фото или отправляет новое."""
     is_call = isinstance(event, CallbackQuery)
     msg = event.message if is_call else event
 
-    if photo_id:
-        # Если текущее сообщение уже с фото — просто редактируем caption
-        if is_call and (msg.photo or msg.document or msg.video):
+    if is_call:
+        # Всегда пробуем edit_caption — если сообщение с фото, сработает
+        try:
+            await msg.edit_caption(caption=text, parse_mode="HTML", reply_markup=kb)
+            await event.answer()
+            return
+        except Exception:
+            pass
+        # edit_caption не сработал (текстовое сообщение) — пробуем edit_text
+        if not photo_id:
             try:
-                await msg.edit_caption(caption=text, parse_mode="HTML", reply_markup=kb)
+                await msg.edit_text(text, parse_mode="HTML", reply_markup=kb)
                 await event.answer()
                 return
             except Exception:
                 pass
-        # Иначе — удаляем старое и отправляем новое фото с caption
-        if is_call:
-            try: await msg.delete()
-            except Exception: pass
+        # Нужно отправить фото — удаляем старое текстовое сообщение
+        try: await msg.delete()
+        except Exception: pass
         try:
             if photo_id.startswith("http"):
                 from aiogram.types import URLInputFile
@@ -672,14 +678,21 @@ async def send_section(event, text: str, kb, photo_id: str = ""):
                                    reply_markup=kb, parse_mode="HTML")
         except Exception:
             await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+        await event.answer()
     else:
-        if is_call:
-            await safe_edit(event, text, reply_markup=kb)
+        if photo_id:
+            try:
+                if photo_id.startswith("http"):
+                    from aiogram.types import URLInputFile
+                    photo_src = URLInputFile(photo_id, filename="image.jpg")
+                else:
+                    photo_src = photo_id
+                await msg.answer_photo(photo=photo_src, caption=text,
+                                       reply_markup=kb, parse_mode="HTML")
+            except Exception:
+                await msg.answer(text, reply_markup=kb, parse_mode="HTML")
         else:
             await msg.answer(text, reply_markup=kb, parse_mode="HTML")
-
-    if is_call:
-        await event.answer()
 
 HELP_TEXT = (
     f"<tg-emoji emoji-id=\"5226512880362332956\">📖</tg-emoji> <b>Как работает ShadowSMSq</b>\n\n"
