@@ -629,10 +629,10 @@ async def start_text(uid: int, first_name: str) -> str:
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
         f"<blockquote><b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> ◀️ нажми чтобы скопировать\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> <tg-emoji emoji-id="5852777596688797905">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
         f"2. Перейдите в • <tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> <b>Автоматизацию чатов</b> •\n\n"
         f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
-        f"Бот сам пришлёт уведомление после подключения."
+        f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">сердце</tg-emoji>"
     )
 
 HELP_TEXT = (
@@ -1332,6 +1332,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+            [InlineKeyboardButton(text="🟢 Как работает бот", callback_data="u:help")],
         ])
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
@@ -1344,6 +1345,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+            [InlineKeyboardButton(text="🟢 Как работает бот", callback_data="u:help")],
         ])
     else:
         text = (
@@ -1483,13 +1485,13 @@ async def cb_main(event, state: FSMContext = None):
 
     if is_admin(uid):
         status = "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Статус: Администратор"
-        access = "<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Безлимитный доступ"
+        access = "<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Безлимитный доступ"
     elif subscribed and sub:
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
         status = "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> Статус: Активен"
         if days_left > 3000:
-            access = "<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Бессрочный доступ"
+            access = "<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Бессрочный доступ"
         else:
             exp_str = exp.strftime("%d.%m.%Y")
             access = f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Доступ до: {exp_str}"
@@ -1533,7 +1535,20 @@ async def cb_main(event, state: FSMContext = None):
         await safe_edit(event, text, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=kb)
+        cabinet_photo_path = Path(__file__).parent / "cabinet_image.jpg"
+        if cabinet_photo_path.exists():
+            try:
+                await event.answer_photo(
+                    photo=FSInputFile(cabinet_photo_path),
+                    caption=text,
+                    reply_markup=kb,
+                    parse_mode="HTML"
+                )
+            except Exception as ex:
+                logger.warning(f"cabinet photo send error: {ex}")
+                await event.answer(text, reply_markup=kb, parse_mode="HTML")
+        else:
+            await event.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @user_router.callback_query(F.data == "u:activity")
 async def cb_activity(call: CallbackQuery):
@@ -1570,13 +1585,13 @@ async def show_plans(event, state: FSMContext = None):
     subscribed = await is_subscribed(uid)
     sub_info = ""
     if is_admin(uid):
-        sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Администратор (безлимит)"
+        sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Администратор (безлимит)"
     elif subscribed:
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
         if days_left > 3000:
-            sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Бессрочно"
+            sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Бессрочно"
         else:
             sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · до {exp.strftime('%d.%m.%Y')} ({days_left} дн.)"
     text = (
@@ -1596,7 +1611,20 @@ async def show_plans(event, state: FSMContext = None):
         await safe_edit(event, text, reply_markup=plans_kb())
         await event.answer()
     else:
-        await event.answer(text, reply_markup=plans_kb())
+        plans_photo_path = Path(__file__).parent / "plans_image.jpg"
+        if plans_photo_path.exists():
+            try:
+                await event.answer_photo(
+                    photo=FSInputFile(plans_photo_path),
+                    caption=text,
+                    reply_markup=plans_kb(),
+                    parse_mode="HTML"
+                )
+            except Exception as ex:
+                logger.warning(f"plans photo send error: {ex}")
+                await event.answer(text, reply_markup=plans_kb())
+        else:
+            await event.answer(text, reply_markup=plans_kb())
 
 # ── Подписка ──
 
@@ -1622,7 +1650,7 @@ async def show_sub(event, state: FSMContext = None):
                 if days_left > 3000:
                     text = (
                         f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> <b>Бессрочная подписка</b>"
+                        f"<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> <b>Бессрочная подписка</b>"
                     )
                 else:
                     text = (
@@ -1652,12 +1680,37 @@ async def show_sub(event, state: FSMContext = None):
 async def btn_connect(msg: Message, state: FSMContext = None):
     uid = msg.from_user.id
     text = await start_text(uid, msg.from_user.first_name)
-    await msg.answer(text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
-        ]),
-        parse_mode="HTML"
-    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚡️ Подключить", url="tg://settings/edit")],
+    ])
+
+    global _start_photo_file_id
+    photo_path = Path(__file__).parent / "start_image.jpg"
+    photo_source = None
+    use_cached = False
+    if _start_photo_file_id:
+        photo_source = _start_photo_file_id
+        use_cached = True
+    elif photo_path.exists():
+        photo_source = FSInputFile(photo_path)
+    elif START_PHOTO_URL:
+        photo_source = URLInputFile(START_PHOTO_URL, filename="start.jpg")
+
+    try:
+        if photo_source is not None:
+            sent = await msg.answer_photo(
+                photo=photo_source,
+                caption=text,
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            if not use_cached and sent.photo:
+                _start_photo_file_id = sent.photo[-1].file_id
+        else:
+            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+    except Exception as ex:
+        logger.warning(f"connect photo send error: {ex}")
+        await msg.answer(text, reply_markup=kb, parse_mode="HTML")
 
 # ── Личный кабинет (кнопка клавиатуры) ──
 
@@ -1694,9 +1747,20 @@ async def show_settings(event, state: FSMContext = None):
         await safe_edit(event, text, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=kb)
-
-@user_router.callback_query(F.data.startswith("toggle:"))
+        notifications_photo_path = Path(__file__).parent / "notifications_image.jpg"
+        if notifications_photo_path.exists():
+            try:
+                await event.answer_photo(
+                    photo=FSInputFile(notifications_photo_path),
+                    caption=text,
+                    reply_markup=kb,
+                    parse_mode="HTML"
+                )
+            except Exception as ex:
+                logger.warning(f"notifications photo send error: {ex}")
+                await event.answer(text, reply_markup=kb)
+        else:
+            await event.answer(text, reply_markup=kb)
 async def cb_toggle(call: CallbackQuery):
     if not (await is_subscribed(call.from_user.id) or is_admin(call.from_user.id)):
         return await call.answer("<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Нужна активная подписка!", show_alert=True,
@@ -1762,7 +1826,20 @@ async def show_help(event, state: FSMContext = None):
         await safe_edit(event, HELP_TEXT, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(HELP_TEXT, reply_markup=kb)
+        help_photo_path = Path(__file__).parent / "help_image.jpg"
+        if help_photo_path.exists():
+            try:
+                await event.answer_photo(
+                    photo=FSInputFile(help_photo_path),
+                    caption=HELP_TEXT,
+                    reply_markup=kb,
+                    parse_mode="HTML"
+                )
+            except Exception as ex:
+                logger.warning(f"help photo send error: {ex}")
+                await event.answer(HELP_TEXT, reply_markup=kb)
+        else:
+            await event.answer(HELP_TEXT, reply_markup=kb)
 
 
 # ── Демо-примеры ──
@@ -2216,14 +2293,14 @@ async def adm_subs(call: CallbackQuery):
     if bought_list:
         lines.append(f"💳 <b>Куплено</b> ({len(bought_list)}):")
         for uid, name, uname, exp_str, days_left in bought_list:
-            icon = "♾" if days_left > 3000 else f"{days_left} дн."
+            icon = "<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji>" if days_left > 3000 else f"{days_left} дн."
             lines.append(f"  • <code>{uid}</code> | {name} | {uname} | до <b>{exp_str}</b> ({icon})")
         lines.append("")
 
     if granted_list:
         lines.append(f"👑 <b>Выдано админом</b> ({len(granted_list)}):")
         for uid, name, uname, exp_str, days_left in granted_list:
-            icon = "♾" if days_left > 3000 else f"{days_left} дн."
+            icon = "<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji>" if days_left > 3000 else f"{days_left} дн."
             lines.append(f"  • <code>{uid}</code> | {name} | {uname} | до <b>{exp_str}</b> ({icon})")
 
     await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
@@ -2497,7 +2574,7 @@ async def adm_grant_id(msg: Message, state: FSMContext):
          InlineKeyboardButton(text="1 месяц",    callback_data="days:30"),
          InlineKeyboardButton(text="3 месяца",   callback_data="days:90")],
         [InlineKeyboardButton(text="1 год",      callback_data="days:365"),
-         InlineKeyboardButton(text="♾ Навсегда", callback_data="days:9999")],
+         InlineKeyboardButton(text="♾️ Навсегда", callback_data="days:9999")],
     ])
     await msg.answer(f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n\nВыбери срок:", reply_markup=kb,
         parse_mode="HTML")
@@ -2520,7 +2597,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
         await safe_edit(call,
             f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Бессрочная подписка выдана!</b>\n\n"
             f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
-            f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок: <b>Бессрочно</b>",
+            f"<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Срок: <b>Бессрочно</b>",
             reply_markup=adm_back_kb())
         await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!",
         parse_mode="HTML")
@@ -2528,7 +2605,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             await call.bot.send_message(uid,
                 f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
                 f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
+                f"<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
                 parse_mode="HTML")
         except: pass
