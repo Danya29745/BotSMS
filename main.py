@@ -127,6 +127,24 @@ def _init_db_sync():
         notify_edited   INTEGER DEFAULT 1,
         notify_viewonce INTEGER DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS referrals (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        referrer_id  INTEGER NOT NULL,
+        referee_id   INTEGER NOT NULL UNIQUE,
+        invited_at   TEXT DEFAULT (datetime('now')),
+        connected_at TEXT,
+        confirmed_at TEXT,
+        paid_at      TEXT,
+        bonus_days   INTEGER DEFAULT 0,
+        bonus_reason TEXT,
+        status       TEXT DEFAULT 'invited'
+    );
+    CREATE TABLE IF NOT EXISTS referral_monthly_cap (
+        referrer_id INTEGER NOT NULL,
+        month_key   TEXT NOT NULL,
+        days_given  INTEGER DEFAULT 0,
+        PRIMARY KEY (referrer_id, month_key)
+    );
     """)
     # Миграция targets
     for col, default in [
@@ -369,6 +387,271 @@ async def get_all_trial_used() -> set:
         return {r["user_id"] for r in rows}
     return await _run(_f)
 
+# ══════════════════════════════════════════════
+# РЕФЕРАЛЬНАЯ СИСТЕМА
+# ══════════════════════════════════════════════
+
+REF_CONNECT_DAYS   = 3     # дней за подключение автоматизации другом
+REF_CONNECT_CAP    = 15    # макс. дней в месяц за подключения
+REF_PAY_PERCENT    = 25    # % дней от купленного тарифа рефереру (бонус за оплату)
+
+def _ref_month_key() -> str:
+    return datetime.now().strftime("%Y-%m")
+
+async def set_referrer(referee_id: int, referrer_id: int):
+    """Записываем кто кого пригласил (только если ещё не записано)."""
+    def _f():
+        c = _conn()
+        c.execute(
+            """INSERT OR IGNORE INTO referrals (referrer_id, referee_id, status)
+               VALUES (?, ?, 'invited')""",
+            (referrer_id, referee_id))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def get_referrer(referee_id: int) -> int | None:
+    """Возвращает ID пригласившего или None."""
+    def _f():
+        c = _conn()
+        row = c.execute(
+            "SELECT referrer_id FROM referrals WHERE referee_id=?", (referee_id,)
+        ).fetchone()
+        c.close()
+        return row["referrer_id"] if row else None
+    return await _run(_f)
+
+async def mark_referee_connected(referee_id: int):
+    """Фиксируем момент подключения автоматизации."""
+    def _f():
+        c = _conn()
+        c.execute(
+            """UPDATE referrals SET connected_at=datetime('now'), status='connected'
+               WHERE referee_id=? AND status='invited'""",
+            (referee_id,))
+        c.commit(); c.close()
+    await _run(_f)
+
+async def try_confirm_and_reward_connect(referee_id: int, bot) -> bool:
+    """
+    Если прошло ≥24ч с connected_at — начисляем рефереру +3 дня (макс 15/мес).
+    Возвращает True если бонус выдан.
+    """
+    def _f():
+        c = _conn()
+        row = c.execute(
+            """SELECT referrer_id, connected_at, status FROM referrals
+               WHERE referee_id=? AND status='connected'""",
+            (referee_id,)).fetchone()
+        c.close()
+        return dict(row) if row else None
+    ref = await _run(_f)
+    if not ref: return False
+    if not ref["connected_at"]: return False
+
+    connected_dt = datetime.strptime(ref["connected_at"], "%Y-%m-%d %H:%M:%S")
+    if datetime.now() - connected_dt < timedelta(hours=24):
+        return False  # ещё не прошло 24 часа
+
+    referrer_id = ref["referrer_id"]
+    month_key   = _ref_month_key()
+
+    def _reward():
+        c = _conn()
+        # Проверяем лимит месяца
+        cap_row = c.execute(
+            "SELECT days_given FROM referral_monthly_cap WHERE referrer_id=? AND month_key=?",
+            (referrer_id, month_key)).fetchone()
+        days_given = cap_row["days_given"] if cap_row else 0
+        can_give = min(REF_CONNECT_DAYS, REF_CONNECT_CAP - days_given)
+        if can_give <= 0:
+            c.close()
+            return 0
+
+        # Продлеваем подписку рефереру
+        sub = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?",
+                        (referrer_id,)).fetchone()
+        if sub:
+            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+            new_exp = max(exp, datetime.now()) + timedelta(days=can_give)
+        else:
+            new_exp = datetime.now() + timedelta(days=can_give)
+        new_exp_str = new_exp.strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("""INSERT INTO subscriptions (user_id, expires_at, granted_by)
+            VALUES (?, ?, -1) ON CONFLICT(user_id)
+            DO UPDATE SET expires_at=?, granted_by=-1""",
+            (referrer_id, new_exp_str, new_exp_str))
+
+        # Обновляем cap
+        c.execute("""INSERT INTO referral_monthly_cap (referrer_id, month_key, days_given)
+            VALUES (?, ?, ?) ON CONFLICT(referrer_id, month_key)
+            DO UPDATE SET days_given=days_given+?""",
+            (referrer_id, month_key, can_give, can_give))
+
+        # Помечаем реферала как подтверждённого
+        c.execute("""UPDATE referrals
+            SET status='confirmed', confirmed_at=datetime('now'), bonus_days=?, bonus_reason='connect'
+            WHERE referee_id=?""",
+            (can_give, referee_id))
+        c.commit(); c.close()
+        return can_give
+
+    given = await _run(_reward)
+    if given > 0:
+        try:
+            cap_row2 = await _run(lambda: (
+                lambda c, r: (r["days_given"] if r else 0, c.close())[0]
+            )(conn := _conn(), conn.execute(
+                "SELECT days_given FROM referral_monthly_cap WHERE referrer_id=? AND month_key=?",
+                (referrer_id, month_key)).fetchone()))
+        except: cap_row2 = given
+
+        try:
+            ref_user = await _run(lambda: (
+                lambda c, r: (dict(r) if r else None, c.close())[0]
+            )(_conn(), _conn().execute("SELECT first_name, username FROM users WHERE user_id=?",
+                                       (referee_id,)).fetchone()))
+        except: ref_user = None
+        name = (ref_user["first_name"] if ref_user else f"#{referee_id}") or f"#{referee_id}"
+
+        remaining = REF_CONNECT_CAP - cap_row2 if isinstance(cap_row2, int) else "?"
+        try:
+            await bot.send_message(referrer_id,
+                f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Реферальный бонус!</b>\n\n"
+                f"Ваш друг <b>{name}</b> активно использует бота уже 24 часа.\n\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Вам начислено: <b>+{given} дн.</b>\n"
+                f"<tg-emoji emoji-id=\"5327779391634153863\">∞</tg-emoji> Осталось бонусов в этом месяце: <b>{remaining} дн.</b>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
+                ]))
+        except: pass
+        return True
+    return False
+
+async def reward_referrer_for_payment(referee_id: int, plan_days: int, bot) -> int:
+    """
+    Начисляем рефереру % от дней купленного тарифа.
+    Возвращает кол-во начисленных дней.
+    """
+    referrer_id = await get_referrer(referee_id)
+    if not referrer_id: return 0
+
+    def _check():
+        c = _conn()
+        row = c.execute(
+            "SELECT status FROM referrals WHERE referee_id=?", (referee_id,)).fetchone()
+        c.close()
+        return row["status"] if row else None
+    status = await _run(_check)
+    if status not in ("connected", "confirmed"): return 0
+
+    bonus_days = max(1, round(plan_days * REF_PAY_PERCENT / 100))
+
+    def _reward():
+        c = _conn()
+        sub = c.execute("SELECT expires_at FROM subscriptions WHERE user_id=?",
+                        (referrer_id,)).fetchone()
+        if sub:
+            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+            new_exp = max(exp, datetime.now()) + timedelta(days=bonus_days)
+        else:
+            new_exp = datetime.now() + timedelta(days=bonus_days)
+        new_exp_str = new_exp.strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("""INSERT INTO subscriptions (user_id, expires_at, granted_by)
+            VALUES (?, ?, -1) ON CONFLICT(user_id)
+            DO UPDATE SET expires_at=?, granted_by=-1""",
+            (referrer_id, new_exp_str, new_exp_str))
+        c.execute("""UPDATE referrals
+            SET paid_at=datetime('now'), status='rewarded',
+                bonus_days=bonus_days+?, bonus_reason='payment'
+            WHERE referee_id=?""",
+            (bonus_days, referee_id))
+        c.commit(); c.close()
+    await _run(_reward)
+
+    try:
+        ref_user = await _run(lambda: dict(row) if (row := _conn().execute(
+            "SELECT first_name, username FROM users WHERE user_id=?", (referee_id,)).fetchone()) else None)
+        name = (ref_user["first_name"] if ref_user else f"#{referee_id}") or f"#{referee_id}"
+        await bot.send_message(referrer_id,
+            f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Реферальный бонус за оплату!</b>\n\n"
+            f"Ваш друг <b>{name}</b> оформил платную подписку.\n\n"
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Вам начислено: <b>+{bonus_days} дн.</b> ({REF_PAY_PERCENT}% от тарифа)",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
+            ]))
+    except: pass
+    return bonus_days
+
+async def get_referral_stats(referrer_id: int) -> dict:
+    """Статистика рефералов для пользователя."""
+    def _f():
+        c = _conn()
+        total   = c.execute("SELECT COUNT(*) as n FROM referrals WHERE referrer_id=?",
+                            (referrer_id,)).fetchone()["n"]
+        connected = c.execute(
+            "SELECT COUNT(*) as n FROM referrals WHERE referrer_id=? AND status IN ('connected','confirmed','rewarded')",
+            (referrer_id,)).fetchone()["n"]
+        rewarded  = c.execute(
+            "SELECT COUNT(*) as n FROM referrals WHERE referrer_id=? AND status='rewarded'",
+            (referrer_id,)).fetchone()["n"]
+        total_bonus = c.execute(
+            "SELECT COALESCE(SUM(bonus_days),0) as s FROM referrals WHERE referrer_id=?",
+            (referrer_id,)).fetchone()["s"]
+        month_key = _ref_month_key()
+        month_cap = c.execute(
+            "SELECT days_given FROM referral_monthly_cap WHERE referrer_id=? AND month_key=?",
+            (referrer_id, month_key)).fetchone()
+        month_used = month_cap["days_given"] if month_cap else 0
+        c.close()
+        return {"total": total, "connected": connected, "rewarded": rewarded,
+                "total_bonus": total_bonus, "month_used": month_used}
+    return await _run(_f)
+
+async def get_top_referrers(limit: int = 10) -> list:
+    """Топ рефереров для админки."""
+    def _f():
+        c = _conn()
+        rows = c.execute("""
+            SELECT r.referrer_id,
+                   u.first_name, u.username,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN r.status IN ('connected','confirmed','rewarded') THEN 1 ELSE 0 END) as connected,
+                   SUM(CASE WHEN r.status='rewarded' THEN 1 ELSE 0 END) as paid,
+                   COALESCE(SUM(r.bonus_days),0) as bonus_days
+            FROM referrals r
+            LEFT JOIN users u ON u.user_id=r.referrer_id
+            GROUP BY r.referrer_id
+            ORDER BY connected DESC, bonus_days DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+    return await _run(_f)
+
+async def get_referrer_detail(referrer_id: int) -> list:
+    """Список рефералов конкретного пользователя для админки."""
+    def _f():
+        c = _conn()
+        rows = c.execute("""
+            SELECT r.*, u.first_name, u.username
+            FROM referrals r
+            LEFT JOIN users u ON u.user_id=r.referee_id
+            ORDER BY r.invited_at DESC
+        """, ).fetchall()
+        # filter by referrer
+        rows2 = c.execute("""
+            SELECT r.*, u.first_name, u.username
+            FROM referrals r
+            LEFT JOIN users u ON u.user_id=r.referee_id
+            WHERE r.referrer_id=?
+            ORDER BY r.invited_at DESC
+        """, (referrer_id,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows2]
+    return await _run(_f)
+
 async def cache_message(chat_id, message_id, user_id, username, first_name,
                         text=None, media_type=None, file_id=None,
                         owner_id=None, is_view_once=False):
@@ -533,6 +816,7 @@ def main_kb():
         [InlineKeyboardButton(text="💎 Тарифы",        callback_data="u:plans"),
          InlineKeyboardButton(text="🔔 Уведомления",  callback_data="u:settings")],
         [InlineKeyboardButton(text="🟢 Как работает бот?", callback_data="u:help")],
+        [InlineKeyboardButton(text="👥 Пригласить друга", callback_data="u:referral")],
         [InlineKeyboardButton(text="◀️ Назад",       callback_data="u:back_start")],
     ])
 
@@ -571,6 +855,7 @@ def admin_kb():
         [InlineKeyboardButton(text="📊 Статистика",    callback_data="adm:stats")],
         [InlineKeyboardButton(text="💰 Изменить цены", callback_data="adm:prices")],
         [InlineKeyboardButton(text="📢 Рассылка",      callback_data="adm:broadcast")],
+        [InlineKeyboardButton(text="👥 Топ рефералов",  callback_data="adm:referrals")],
     ])
 
 def adm_back_kb():
@@ -629,7 +914,7 @@ async def start_text(uid: int, first_name: str) -> str:
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
         f"<blockquote><b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> <tg-emoji emoji-id="5852777596688797905">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> <tg-emoji emoji-id=\"5852777596688797905\">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
         f"2. Перейдите в • <tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> <b>Автоматизацию чатов</b> •\n\n"
         f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
         f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">сердце</tg-emoji>"
@@ -1307,6 +1592,9 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
         except: pass
         return
 
+    # ── Реферальная система: фиксируем подключение ──
+    await mark_referee_connected(uid)
+
     # Автоматически выдаём пробный период 7 дней при первом подключении
     trial_activated = False
     if not await has_used_trial(uid) and not is_admin(uid) and not await is_subscribed(uid):
@@ -1411,6 +1699,15 @@ async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     u = msg.from_user
     await upsert_user(u.id, u.username, u.first_name)
+
+    # ── Реферальная ссылка ──
+    args = msg.text.split(maxsplit=1)
+    if len(args) > 1:
+        ref_param = args[1].strip()
+        if ref_param.startswith("ref_") and ref_param[4:].isdigit():
+            referrer_id = int(ref_param[4:])
+            if referrer_id != u.id:
+                await set_referrer(u.id, referrer_id)
 
     text = await start_text(u.id, u.first_name)
     trial_just_activated = False
@@ -1842,6 +2139,59 @@ async def show_help(event, state: FSMContext = None):
             await event.answer(HELP_TEXT, reply_markup=kb)
 
 
+# ── Реферальная система (пользователь) ──
+
+@user_router.callback_query(F.data == "u:referral")
+async def cb_referral(call: CallbackQuery):
+    uid = call.from_user.id
+    stats = await get_referral_stats(uid)
+    ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
+    month_remaining = max(0, REF_CONNECT_CAP - stats["month_used"])
+
+    text = (
+        f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> <b>Реферальная программа</b>\n\n"
+        f"Приглашайте друзей и получайте бесплатные дни подписки!\n\n"
+        f"<b>Как это работает:</b>\n"
+        f"<tg-emoji emoji-id=\"5235776368905562305\">1️⃣</tg-emoji> Друг переходит по вашей ссылке\n"
+        f"<tg-emoji emoji-id=\"5237704680372447424\">2️⃣</tg-emoji> Запускает бота и подключает автоматизацию\n"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Остаётся активен 24 часа → вы получаете <b>+{REF_CONNECT_DAYS} дня</b>\n"
+        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Друг покупает подписку → вы получаете <b>+{REF_PAY_PERCENT}%</b> от её срока\n\n"
+        f"<b>Лимит:</b> не более <b>{REF_CONNECT_CAP} дней/месяц</b> за подключения\n\n"
+        f"<b>Ваша статистика:</b>\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Приглашено: <b>{stats['total']}</b>\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> Подключили бота: <b>{stats['connected']}</b>\n"
+        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформили подписку: <b>{stats['rewarded']}</b>\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Всего получено дней: <b>{stats['total_bonus']}</b>\n"
+        f"<tg-emoji emoji-id=\"5327779391634153863\">∞</tg-emoji> Осталось бонусов в этом месяце: <b>{month_remaining} дн.</b>\n\n"
+        f"<b>Ваша реферальная ссылка:</b>\n"
+        f"<code>{ref_link}</code>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📤 Поделиться ссылкой",
+            url=f"https://t.me/share/url?url={ref_link}&text=Попробуй%20ShadowSMSq%20-%20бот%20для%20отслеживания%20удалённых%20сообщений!")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="u:main")],
+    ])
+    # Отправляем с картинкой если это первый вызов (не редактирование)
+    referral_photo_path = Path(__file__).parent / "referral_image.jpg"
+    if referral_photo_path.exists():
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        try:
+            await call.message.answer_photo(
+                photo=FSInputFile(referral_photo_path),
+                caption=text,
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            await call.answer()
+            return
+        except Exception as ex:
+            logger.warning(f"referral photo send error: {ex}")
+    await safe_edit(call, text, reply_markup=kb)
+    await call.answer()
+
 # ── Демо-примеры ──
 
 @user_router.callback_query(F.data == "demo:deleted")
@@ -1972,6 +2322,9 @@ async def on_payment(msg: Message, bot: Bot):
             [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
         ]),
         parse_mode="HTML")
+    # ── Реферальный бонус за оплату ──
+    await reward_referrer_for_payment(uid, plan["days"], bot)
+
     await notify_admins(bot,
         f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> <b>Новая оплата!</b>\n\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(uid, msg.from_user.first_name, msg.from_user.username)}\n"
@@ -2231,18 +2584,44 @@ async def adm_stats(call: CallbackQuery):
 
 @admin_router.callback_query(F.data == "adm:users")
 async def adm_users(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji>", show_alert=True,
-        parse_mode="HTML")
+    await adm_users_page(call, page=0)
+
+@admin_router.callback_query(F.data.startswith("adm:users_p:"))
+async def adm_users_paged(call: CallbackQuery):
+    page = int(call.data.split(":")[-1])
+    await adm_users_page(call, page=page)
+
+async def adm_users_page(call: CallbackQuery, page: int = 0):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
     users = await get_all_users()
     if not users:
         return await safe_edit(call, "Пользователей нет.", reply_markup=adm_back_kb())
-    lines = [f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> <b>Пользователи</b> ({len(users)}):\n"]
-    for u in users[:50]:
+
+    PAGE_SIZE = 50
+    total = len(users)
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(0, min(page, total_pages - 1))
+    chunk = users[page * PAGE_SIZE : (page + 1) * PAGE_SIZE]
+
+    lines = [f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> <b>Пользователи</b> ({total}) · стр. {page+1}/{total_pages}:\n"]
+    for u in chunk:
         uname = f"@{u['username']}" if u['username'] else "—"
         tgt   = " <tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji>" if is_target(u["user_id"]) else ""
         reg   = u.get("registered", "")[:10] if u.get("registered") else "—"
         lines.append(f"• <code>{u['user_id']}</code> | {u['first_name'] or '—'} | {uname} | <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji>{reg}{tgt}")
-    await safe_edit(call, "\n".join(lines), reply_markup=adm_back_kb())
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"adm:users_p:{page-1}"))
+    if page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(text="Вперёд ▶️", callback_data=f"adm:users_p:{page+1}"))
+
+    kb_rows = []
+    if nav_buttons:
+        kb_rows.append(nav_buttons)
+    kb_rows.append([InlineKeyboardButton(text="◀️ В панель", callback_data="adm:back")])
+
+    await safe_edit(call, "\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
     await call.answer()
 
 @admin_router.callback_query(F.data == "adm:subs")
@@ -2678,6 +3057,124 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
         parse_mode="HTML")
 
 # ══════════════════════════════════════════════
+# РЕФЕРАЛЬНАЯ СИСТЕМА — АДМИНКА
+# ══════════════════════════════════════════════
+
+@admin_router.callback_query(F.data == "adm:referrals")
+async def adm_referrals_top(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    top = await get_top_referrers(10)
+    if not top:
+        return await safe_edit(call, "Рефералов пока нет.", reply_markup=adm_back_kb())
+    lines = [f"<tg-emoji emoji-id=\"5372926953978341366\">👥</tg-emoji> <b>Топ рефереров</b>\n"]
+    rows = []
+    for i, r in enumerate(top, 1):
+        name  = r.get("first_name") or "—"
+        uname = f" @{r['username']}" if r.get("username") else ""
+        lines.append(
+            f"{i}. <a href=\"tg://user?id={r['referrer_id']}\">{name}</a>{uname} — "
+            f"подключено: <b>{r['connected']}</b>, оплатили: <b>{r['paid']}</b>, "
+            f"бонусов: <b>{r['bonus_days']} дн.</b>"
+        )
+        rows.append([InlineKeyboardButton(
+            text=f"{i}. {name}{uname} · {r['connected']} чел.",
+            callback_data=f"adm:ref_detail:{r['referrer_id']}"
+        )])
+    rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")])
+    await safe_edit(call, "\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    await call.answer()
+
+@admin_router.callback_query(F.data.startswith("adm:ref_detail:"))
+async def adm_ref_detail(call: CallbackQuery):
+    if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
+    referrer_id = int(call.data.split(":")[-1])
+    refs = await get_referrer_detail(referrer_id)
+    stats = await get_referral_stats(referrer_id)
+
+    # Инфо о самом реферере
+    def _get_user():
+        c = _conn()
+        row = c.execute("SELECT * FROM users WHERE user_id=?", (referrer_id,)).fetchone()
+        c.close()
+        return dict(row) if row else None
+    ref_user = await _run(_get_user)
+    name  = (ref_user["first_name"] if ref_user else None) or f"#{referrer_id}"
+    uname = f" @{ref_user['username']}" if ref_user and ref_user.get("username") else ""
+
+    sub = await get_subscription(referrer_id)
+    if sub:
+        exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
+        sub_str = exp.strftime("%d.%m.%Y")
+        sub_active = "✅" if exp > datetime.now() else "❌"
+    else:
+        sub_str = "нет"
+        sub_active = "❌"
+
+    lines = [
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> <b>{name}</b>{uname}",
+        f"ID: <code>{referrer_id}</code>",
+        f"Подписка: {sub_active} до <b>{sub_str}</b>",
+        f"",
+        f"<b>Реферальная статистика:</b>",
+        f"Приглашено: <b>{stats['total']}</b>",
+        f"Подключили бота: <b>{stats['connected']}</b>",
+        f"Оформили подписку: <b>{stats['rewarded']}</b>",
+        f"Всего бонусных дней: <b>{stats['total_bonus']}</b>",
+        f"Использовано в этом месяце: <b>{stats['month_used']}/{REF_CONNECT_CAP} дн.</b>",
+        f"",
+        f"<b>Список рефералов:</b>",
+    ]
+
+    STATUS_EMOJI = {
+        "invited": "⏳", "connected": "🔗", "confirmed": "✅", "rewarded": "💳"
+    }
+    STATUS_LABEL = {
+        "invited": "пригласил", "connected": "подключил", "confirmed": "подтверждён", "rewarded": "оплатил"
+    }
+    for r in refs[:20]:
+        rname = r.get("first_name") or f"#{r['referee_id']}"
+        runame = f" @{r['username']}" if r.get("username") else ""
+        s = r.get("status", "invited")
+        emoji = STATUS_EMOJI.get(s, "❓")
+        label = STATUS_LABEL.get(s, s)
+        bonus = f" +{r['bonus_days']}дн." if r.get("bonus_days") else ""
+        lines.append(f"{emoji} <a href=\"tg://user?id={r['referee_id']}\">{rname}</a>{runame} — {label}{bonus}")
+
+    if len(refs) > 20:
+        lines.append(f"<i>...и ещё {len(refs)-20}</i>")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ К топу", callback_data="adm:referrals")]
+    ])
+    await safe_edit(call, "\n".join(lines), reply_markup=kb)
+    await call.answer()
+
+# ── Фоновая задача: начисление бонусов за 24ч активности ──
+
+async def check_referral_confirmations(bot: Bot):
+    """Каждые 30 минут проверяем рефералов, подключившихся ≥24ч назад."""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # 30 минут
+            def _get_pending():
+                c = _conn()
+                threshold = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+                rows = c.execute(
+                    """SELECT referee_id FROM referrals
+                       WHERE status='connected' AND connected_at <= ?""",
+                    (threshold,)).fetchall()
+                c.close()
+                return [r["referee_id"] for r in rows]
+            pending = await _run(_get_pending)
+            for referee_id in pending:
+                try:
+                    await try_confirm_and_reward_connect(referee_id, bot)
+                except Exception as ex:
+                    logger.warning(f"referral confirm {referee_id}: {ex}")
+        except Exception as ex:
+            logger.warning(f"check_referral_confirmations error: {ex}")
+
+# ══════════════════════════════════════════════
 # ЗАПУСК
 # ══════════════════════════════════════════════
 
@@ -2695,6 +3192,7 @@ async def main():
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
     asyncio.create_task(check_expired_subscriptions(bot))
+    asyncio.create_task(check_referral_confirmations(bot))
     logger.info(f"{BOT_NAME} запущен")
 
     await dp.start_polling(bot, allowed_updates=[
