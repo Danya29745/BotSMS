@@ -499,12 +499,17 @@ async def notify_admins(bot: Bot, text: str, **kwargs):
         except Exception as ex: logger.warning(f"notify admin {admin_id}: {ex}")
 
 async def safe_edit(call: CallbackQuery, text: str, **kwargs):
+    """Редактирует сообщение. Если это фото — редактирует caption."""
+    msg = call.message
     try:
-        await call.message.edit_text(text, parse_mode="HTML", **kwargs)
+        if msg.photo or msg.document or msg.video:
+            await msg.edit_caption(caption=text, parse_mode="HTML", **kwargs)
+        else:
+            await msg.edit_text(text, parse_mode="HTML", **kwargs)
     except Exception:
-        try: await call.message.delete()
+        try: await msg.delete()
         except: pass
-        try: await call.message.answer(text, parse_mode="HTML", **kwargs)
+        try: await msg.answer(text, parse_mode="HTML", **kwargs)
         except: pass
 
 # ══════════════════════════════════════════════
@@ -627,8 +632,8 @@ HELP_PHOTO_ID     = os.getenv("HELP_PHOTO_ID",    "https://i.ibb.co/ybKXwQ7/help
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"<b>Добро пожаловать, {first_name}! <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n\n"
-        f"<i>Я перехватываю то, что другие пытаются скрыть.</i>\n\n"
+        f"<b>Добро пожаловать в ShadowSMSq! <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n\n"
+        f"<i>{first_name}, я перехватываю то, что другие пытаются скрыть.</i>\n\n"
         f"<b>Возможности бота:</b>\n"
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
@@ -640,29 +645,39 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 async def send_section(event, text: str, kb, photo_id: str = ""):
-    """Отправляет раздел: если есть photo_id — новым сообщением с фото + текст, иначе edit"""
+    """Отправляет раздел с фото в caption — фото не плодится в чате."""
     is_call = isinstance(event, CallbackQuery)
     msg = event.message if is_call else event
+
     if photo_id:
+        # Если текущее сообщение уже с фото — просто редактируем caption
+        if is_call and (msg.photo or msg.document or msg.video):
+            try:
+                await msg.edit_caption(caption=text, parse_mode="HTML", reply_markup=kb)
+                await event.answer()
+                return
+            except Exception:
+                pass
+        # Иначе — удаляем старое и отправляем новое фото с caption
+        if is_call:
+            try: await msg.delete()
+            except Exception: pass
         try:
-            # Если это URL — используем URLInputFile, если file_id — передаём как строку
             if photo_id.startswith("http"):
                 from aiogram.types import URLInputFile
                 photo_src = URLInputFile(photo_id, filename="image.jpg")
             else:
                 photo_src = photo_id
-            await msg.answer_photo(photo=photo_src)
+            await msg.answer_photo(photo=photo_src, caption=text,
+                                   reply_markup=kb, parse_mode="HTML")
         except Exception:
-            pass
-        await msg.answer(text, reply_markup=kb, parse_mode="HTML")
-        if is_call:
-            try: await event.message.delete()
-            except Exception: pass
+            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
     else:
         if is_call:
             await safe_edit(event, text, reply_markup=kb)
         else:
             await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+
     if is_call:
         await event.answer()
 
