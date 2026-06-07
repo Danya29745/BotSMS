@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> ShadowSMSq Bot — v3
+👁 ShadowSMSq Bot — v3
 """
 
 import asyncio
@@ -506,16 +506,15 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
 def reply_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="⚡️ Подключить бота"), KeyboardButton(text="👤 Личный кабинет")],
-            [KeyboardButton(text="🏠 Главное меню"), KeyboardButton(text="💳 Тарифы")],
-            [KeyboardButton(text="📋 Подписка"),      KeyboardButton(text="⚙️ Настройки")],
+            [KeyboardButton(text="⚡️ Подключить бота"), KeyboardButton(text="💳 Тарифы")],
+            [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="⚙️ Настройки")],
             [KeyboardButton(text="❓ Инструкция")],
         ],
         resize_keyboard=True, persistent=True
     )
 
 def start_kb(uid: int = None):
-    buttons = [[InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")]]
+    buttons = [[InlineKeyboardButton(text="⚡️ Перейти в Автоматизацию", url="tg://settings/edit")]]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def main_kb():
@@ -529,7 +528,7 @@ def main_kb():
 
 def back_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
     ])
 
 def plans_kb():
@@ -613,11 +612,17 @@ START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>ShadowSMSq готов к работе!</b>\n\n"
-        f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> Сохраняет <b>удалённые сообщения</b>\n"
-        f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ Показывает <b>изменения</b> сообщений\n"
-        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохраняет <b>исчезающие фото и видео</b>\n\n"
-        f"Нажимай кнопку ниже <tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>"
+        f"Добро пожаловать, <b>{first_name}</b> <tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>\n"
+        f"<i>Перехватываю то, что другие пытаются скрыть.</i>\n\n"
+        f"<b>Возможности бота:</b>\n"
+        f"• Удалённые сообщения <tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji>\n"
+        f"• Правки и изменения <tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️\n"
+        f"• Исчезающие фото и видео <tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>\n\n"
+        f"<blockquote><b>Подключение:</b>\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> ◀️ нажми чтобы скопировать\n\n"
+        f"2. Перейдите в • <tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> <b>Автоматизацию чатов</b> •\n\n"
+        f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
+        f"Бот сам пришлёт уведомление после подключения."
     )
 
 HELP_TEXT = (
@@ -638,7 +643,7 @@ HELP_TEXT = (
     f"Прислали фото или видео «один раз»? Не открывай сразу!\n\n"
     f"<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> <b>Открыл — файл исчезнет, бот не успеет его забрать.</b>\n\n"
     f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Как сохранить:</b>\n"
-    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji>\n\n"
+    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или <code>🔥</code>\n\n"
     f"Бот скачает файл и сразу пришлёт тебе <tg-emoji emoji-id=\"5471984997361523302\">👌</tg-emoji>\n\n"
 
     f"<i>Telegram Premium не нужен — работает у всех</i>"
@@ -1018,7 +1023,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
 
 async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
     """
-    Если владелец ставит реакцию <tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> на сообщение с медиа — скачиваем файл.
+    Если владелец ставит реакцию 🔥 на сообщение с медиа — скачиваем файл.
     Работает через кэш: берём file_id из базы по chat_id + message_id.
     """
     chat_id    = reaction_event.chat.id
@@ -1309,7 +1314,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
             f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
+            [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
         ])
     elif await is_subscribed(uid) or is_admin(uid):
         text = (
@@ -1321,7 +1326,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
             f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Открыть меню", callback_data="u:main")],
+            [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
         ])
     else:
         text = (
@@ -1427,8 +1432,8 @@ async def cb_setup(call: CallbackQuery):
     text = (
         f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> <b>Подключение ShadowSMSq</b>\n\n"
         f"Для подключения потребуется всего <b>2 шага</b>.\n\n"
-        f"1️⃣ Скопируйте: <code>@{BOT_USERNAME}</code>\n"
-        f"2️⃣ Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
+        f"<tg-emoji emoji-id=\"5235776368905562305\">1️⃣</tg-emoji> Скопируйте: <code>@{BOT_USERNAME}</code>\n"
+        f"<tg-emoji emoji-id=\"5237704680372447424\">2️⃣</tg-emoji> Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
         f"После подключения ShadowSMSq автоматически отправит уведомление."
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1444,6 +1449,7 @@ async def cb_back_start(call: CallbackQuery):
     await safe_edit(call, text, reply_markup=start_kb(call.from_user.id))
     await call.answer()
 
+@user_router.message(F.text == "👤 Личный кабинет")
 @user_router.message(F.text == "🏠 Главное меню")
 @user_router.callback_query(F.data == "u:main")
 async def cb_main(event, state: FSMContext = None):
@@ -1629,58 +1635,6 @@ async def btn_connect(msg: Message, state: FSMContext = None):
 
 # ── Личный кабинет (кнопка клавиатуры) ──
 
-@user_router.message(F.text == "👤 Личный кабинет")
-async def btn_cabinet(msg: Message, state: FSMContext = None):
-    uid = msg.from_user.id
-    if is_admin(uid):
-        text = "<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>Администратор</b>\nБезлимитный доступ ко всем функциям."
-    else:
-        sub = await get_subscription(uid)
-        if not sub:
-            text = (
-                f"<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> <b>Подписка не активна</b>\n\n"
-                f"Оформите подписку чтобы начать использовать {BOT_NAME}."
-            )
-        else:
-            exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
-            now = datetime.now()
-            is_trial = sub.get("granted_by", 1) == 0  # 0 = выдан системой (пробный/бесплатный)
-            exp_str = exp.strftime("%d.%m.%Y")
-            if exp > now:
-                days_left = (exp - now).days
-                if days_left > 3000:
-                    text = (
-                        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Срок действия: <b>Навсегда</b>"
-                    )
-                elif is_trial:
-                    text = (
-                        f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Тестовый период</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Истекает: <b>{exp_str}</b>\n"
-                        f"⏳ Осталось: <b>{days_left} дн.</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5447644880824181073\">⚠️</tg-emoji> <i>После окончания потребуется оформить подписку.</i>"
-                    )
-                else:
-                    text = (
-                        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b>\n\n"
-                        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> Активна до: <b>{exp_str}</b>\n"
-                        f"⏳ Осталось: <b>{days_left} дн.</b>"
-                    )
-            else:
-                text = (
-                    f"⏰ <b>Подписка истекла</b>\n\n"
-                    f"Дата истечения: {exp.strftime('%d.%m.%Y')}\n"
-                    f"Оформите новую подписку для продолжения."
-                )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Купить / Продлить",  callback_data="u:plans")],
-        [InlineKeyboardButton(text="⚡️ Подключить бота",    url="tg://settings/edit")],
-        [InlineKeyboardButton(text="⚙️ Настройки",          callback_data="u:settings")],
-        [InlineKeyboardButton(text="❓ Инструкция",          callback_data="u:help")],
-        [InlineKeyboardButton(text="🏠 Главное меню",        callback_data="u:main")],
-    ])
-    await msg.answer(text, reply_markup=kb, parse_mode="HTML")
 
 # ── Настройки ──
 
@@ -1693,15 +1647,15 @@ async def show_settings(event, state: FSMContext = None):
     def ico(v): return "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>" if v else "<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> Удалённые сообщения {'🟢' if s['notify_delete'] else '🔴'}",
+            text=f"🗑 Удалённые сообщения {'🟢' if s['notify_delete'] else '🔴'}",
             callback_data="toggle:notify_delete")],
         [InlineKeyboardButton(
-            text=f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ Изменения сообщений {'🟢' if s['notify_edit'] else '🔴'}",
+            text=f"✏️ Изменения сообщений {'🟢' if s['notify_edit'] else '🔴'}",
             callback_data="toggle:notify_edit")],
         [InlineKeyboardButton(
             text=f"📸 Исчезающие медиа {'🟢' if s['notify_self_destruct'] else '🔴'}",
             callback_data="toggle:notify_self_destruct")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
     ])
     text = (
         f"<tg-emoji emoji-id=\"5341715473882955310\">⚙</tg-emoji>️ <b>Настройки отслеживания</b>\n\n"
@@ -1760,7 +1714,7 @@ async def cb_activate(call: CallbackQuery):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💳 Тарифы", callback_data="u:plans")],
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")],
+            [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
         ])
     )
 
@@ -1775,7 +1729,7 @@ async def show_help(event, state: FSMContext = None):
         inline_buttons.append([InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")])
     inline_buttons.append([InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")])
     inline_buttons.append([InlineKeyboardButton(text="📩 Поддержка", url="https://t.me/support")])
-    inline_buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")])
+    inline_buttons.append([InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
     if is_call:
         await safe_edit(event, HELP_TEXT, reply_markup=kb)
@@ -1846,7 +1800,7 @@ async def on_payment(msg: Message, bot: Bot):
         f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>Доступ открыт до: {exp_dt.strftime('%d.%m.%Y')}</b>\n\n"
         f"Приятного использования!",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="u:main")]
+            [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
         ]),
         parse_mode="HTML")
     await notify_admins(bot,
@@ -1868,9 +1822,6 @@ async def cmd_sub(msg: Message):
 async def cmd_connect(msg: Message, state: FSMContext):
     await btn_connect(msg, state)
 
-@user_router.message(Command("cabinet"))
-async def cmd_cabinet(msg: Message, state: FSMContext):
-    await btn_cabinet(msg, state)
 
 @user_router.message(Command("help"))
 async def cmd_help(msg: Message):
@@ -2482,7 +2433,6 @@ async def main():
     await restore_targets()
     await bot.set_my_commands([
         BotCommand(command="connect",  description="<tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> Подключить бота"),
-        BotCommand(command="cabinet",  description="<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Личный кабинет"),
         BotCommand(command="help",     description="<tg-emoji emoji-id=\"5436113877181941026\">❓</tg-emoji> Инструкция"),
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
