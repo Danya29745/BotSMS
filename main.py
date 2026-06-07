@@ -1424,6 +1424,7 @@ async def on_biz_reaction(reaction_event, bot: Bot):
 _start_photo_file_id: str | None = None
 
 @user_router.message(Command("start"))
+@user_router.message(Command("connect"))
 async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     u = msg.from_user
@@ -2561,22 +2562,39 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
         parse_mode="HTML")
     data = await state.get_data()
     uid  = data.get("target_user_id")
+    if not uid:
+        await state.clear()
+        return await msg.answer("<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji> Ошибка: ID пользователя не найден.", parse_mode="HTML")
     expires = await grant_subscription(uid, days, msg.from_user.id)
     await state.clear()
     exp_dt = datetime.strptime(expires, "%Y-%m-%d %H:%M:%S")
+    is_forever = days >= 9999
     await msg.answer(
         f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
-        f"⏳ {days} дн. · до {exp_dt.strftime('%d.%m.%Y %H:%M')}",
+        + (f"<tg-emoji emoji-id=\"5305624563046948807\">♾</tg-emoji> Срок: <b>Бессрочно</b>" if is_forever
+           else f"⏳ {days} дн. · до {exp_dt.strftime('%d.%m.%Y %H:%M')}"),
         reply_markup=adm_back_kb(),
         parse_mode="HTML")
+    # Уведомление пользователю
     try:
-        await msg.bot.send_message(uid,
-            f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
-            f"⏳ Срок: <b>{days} дн.</b>\n"
-            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>",
-            parse_mode="HTML")
-    except: pass
+        if is_forever:
+            user_text = (
+                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"<tg-emoji emoji-id=\"5305624563046948807\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
+                f"<i>Используй /start</i>"
+            )
+        else:
+            user_text = (
+                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+                f"⏳ Срок: <b>{days} дн.</b>\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                f"<i>Используй /start</i>"
+            )
+        await msg.bot.send_message(uid, user_text, parse_mode="HTML")
+    except Exception as ex:
+        logger.warning(f"Не удалось отправить уведомление пользователю {uid}: {ex}")
 
 @admin_router.callback_query(F.data == "adm:revoke")
 async def adm_revoke_start(call: CallbackQuery, state: FSMContext):
