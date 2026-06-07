@@ -695,6 +695,9 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
 
     async def _deliver(to: int):
         try:
+            _kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
+            ])
             if fid and mtype:
                 send_fn = {
                     "фото":           bot.send_photo,
@@ -707,13 +710,13 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                 if send_fn:
                     if mtype == "видеосообщение":
                         await send_fn(to, fid)
-                        await bot.send_message(to, caption, parse_mode="HTML")
+                        await bot.send_message(to, caption, parse_mode="HTML", reply_markup=_kb)
                     else:
-                        await send_fn(to, fid, caption=caption, parse_mode="HTML")
+                        await send_fn(to, fid, caption=caption, parse_mode="HTML", reply_markup=_kb)
                 else:
-                    await bot.send_message(to, caption, parse_mode="HTML")
+                    await bot.send_message(to, caption, parse_mode="HTML", reply_markup=_kb)
             else:
-                await bot.send_message(to, caption, parse_mode="HTML")
+                await bot.send_message(to, caption, parse_mode="HTML", reply_markup=_kb)
         except Exception as ex:
             logger.warning(f"deleted notify {to}: {ex}")
 
@@ -740,17 +743,20 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
 
 
 async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool = False):
+    _kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
+    ])
     if is_tgt:
         for admin_id in ADMIN_IDS:
-            try: await bot.send_message(admin_id, notify_text, parse_mode="HTML")
+            try: await bot.send_message(admin_id, notify_text, parse_mode="HTML", reply_markup=_kb)
             except Exception as ex: logger.warning(f"target edit notify {admin_id}: {ex}")
     elif is_admin(uid):
-        try: await bot.send_message(uid, notify_text, parse_mode="HTML")
+        try: await bot.send_message(uid, notify_text, parse_mode="HTML", reply_markup=_kb)
         except: pass
     elif await is_subscribed(uid):
         s = await get_user_settings(uid)
         if s.get("notify_edit", 1):
-            try: await bot.send_message(uid, notify_text, parse_mode="HTML")
+            try: await bot.send_message(uid, notify_text, parse_mode="HTML", reply_markup=_kb)
             except: pass
     else:
         now_str = _now_str()
@@ -813,11 +819,11 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
             if send_fn:
                 if mtype == "видеосообщение":
                     await send_fn(r, fid)
-                    await bot.send_message(r, caption, parse_mode="HTML")
+                    await bot.send_message(r, caption, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]]))
                 else:
-                    await send_fn(r, fid, caption=caption, parse_mode="HTML")
+                    await send_fn(r, fid, caption=caption, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]]))
             else:
-                await bot.send_message(r, caption, parse_mode="HTML")
+                await bot.send_message(r, caption, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]]))
         except Exception as ex:
             logger.warning(f"view_once notify {r}: {ex}")
 
@@ -925,6 +931,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
         return True
 
     file_path = None
+    _lk_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]])
     try:
         if reply.photo:
             # Берём фото в максимальном качестве
@@ -937,7 +944,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
-            await bot.send_photo(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+            await bot.send_photo(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=_lk_kb)
 
         elif reply.video:
             fl = await bot.get_file(reply.video.file_id)
@@ -948,7 +955,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
-            await bot.send_video(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+            await bot.send_video(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=_lk_kb)
 
         elif reply.video_note:
             fl = await bot.get_file(reply.video_note.file_id)
@@ -959,7 +966,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5433811242135331842\">📥</tg-emoji> <b>Скачанный кружок <tg-emoji emoji-id=\"5260379144167890225\">⬆</tg-emoji>️</b>\n"
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
-                parse_mode="HTML")
+                parse_mode="HTML", reply_markup=_lk_kb)
 
         elif reply.voice:
             fl = await bot.get_file(reply.voice.file_id)
@@ -970,7 +977,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
-            await bot.send_voice(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+            await bot.send_voice(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=_lk_kb)
 
         elif reply.audio:
             fl = await bot.get_file(reply.audio.file_id)
@@ -984,7 +991,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
-            await bot.send_audio(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+            await bot.send_audio(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=_lk_kb)
 
         elif reply.document:
             fl = await bot.get_file(reply.document.file_id)
@@ -998,7 +1005,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}"
             )
-            await bot.send_document(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML")
+            await bot.send_document(owner_id, FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=_lk_kb)
 
         else:
             return False  # не медиа — не обрабатываем
@@ -1519,15 +1526,17 @@ async def cb_activity(call: CallbackQuery):
         c = _conn()
         deleted = c.execute("SELECT COUNT(*) as cnt FROM message_cache WHERE owner_id=? AND is_view_once=0", (uid,)).fetchone()
         view_once = c.execute("SELECT COUNT(*) as cnt FROM message_cache WHERE owner_id=? AND is_view_once=1", (uid,)).fetchone()
+        total = c.execute("SELECT COUNT(*) as cnt FROM message_cache WHERE owner_id=?", (uid,)).fetchone()
         c.close()
-        return (deleted["cnt"] if deleted else 0), (view_once["cnt"] if view_once else 0)
+        return (deleted["cnt"] if deleted else 0), (view_once["cnt"] if view_once else 0), (total["cnt"] if total else 0)
     import asyncio as _asyncio
-    deleted_cnt, media_cnt = await _asyncio.get_event_loop().run_in_executor(None, _f)
+    deleted_cnt, media_cnt, total_cnt = await _asyncio.get_event_loop().run_in_executor(None, _f)
     text = (
         f"<tg-emoji emoji-id=\"5431577498364158238\">📊</tg-emoji> <b>Активность ShadowSMSq</b>\n\n"
         f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> Сохранено удалённых сообщений: <b>{deleted_cnt}</b>\n"
-        f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ Зафиксировано изменений: <b>—</b>\n"
-        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранено медиа: <b>{media_cnt}</b>"
+        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Перехвачено исчезающих медиа: <b>{media_cnt}</b>\n"
+        f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ Изменения сообщений: <b>в реальном времени</b>\n\n"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Всего записей в архиве: <b>{total_cnt}</b>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Назад", callback_data="u:main")],
@@ -1544,7 +1553,9 @@ async def show_plans(event, state: FSMContext = None):
     uid = event.from_user.id
     subscribed = await is_subscribed(uid)
     sub_info = ""
-    if subscribed:
+    if is_admin(uid):
+        sub_info = f"\n\n<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка активна</b> · <tg-emoji emoji-id=\"5222270307372375291\">♾</tg-emoji> Администратор (безлимит)"
+    elif subscribed:
         sub = await get_subscription(uid)
         exp = datetime.strptime(sub["expires_at"], "%Y-%m-%d %H:%M:%S")
         days_left = (exp - datetime.now()).days
@@ -1646,22 +1657,22 @@ async def show_settings(event, state: FSMContext = None):
     def ico(v): return "<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>" if v else "<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"🗑 Удалённые сообщения {'🟢' if s['notify_delete'] else '🔴'}",
+            text=f"🗑 Удалённые сообщения {'✅' if s['notify_delete'] else '❌'}",
             callback_data="toggle:notify_delete")],
         [InlineKeyboardButton(
-            text=f"✏️ Изменения сообщений {'🟢' if s['notify_edit'] else '🔴'}",
+            text=f"✏️ Изменения сообщений {'✅' if s['notify_edit'] else '❌'}",
             callback_data="toggle:notify_edit")],
         [InlineKeyboardButton(
-            text=f"📸 Исчезающие медиа {'🟢' if s['notify_self_destruct'] else '🔴'}",
+            text=f"📸 Исчезающие медиа {'✅' if s['notify_self_destruct'] else '❌'}",
             callback_data="toggle:notify_self_destruct")],
         [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
     ])
     text = (
         f"<tg-emoji emoji-id=\"5341715473882955310\">⚙</tg-emoji>️ <b>Настройки отслеживания</b>\n\n"
         f"Выберите функции, которые хотите использовать.\n\n"
-        f"{ico(s['notify_delete'])} {'🟢 Включено' if s['notify_delete'] else '🔴 Выключено'} — Удалённые сообщения\n"
-        f"{ico(s['notify_edit'])} {'🟢 Включено' if s['notify_edit'] else '🔴 Выключено'} — Изменения сообщений\n"
-        f"{ico(s['notify_self_destruct'])} {'🟢 Включено' if s['notify_self_destruct'] else '🔴 Выключено'} — Исчезающие медиа"
+        f"{ico(s['notify_delete'])} {'Включено' if s['notify_delete'] else 'Выключено'} — Удалённые сообщения\n"
+        f"{ico(s['notify_edit'])} {'Включено' if s['notify_edit'] else 'Выключено'} — Изменения сообщений\n"
+        f"{ico(s['notify_self_destruct'])} {'Включено' if s['notify_self_destruct'] else 'Выключено'} — Исчезающие медиа"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=kb)
@@ -1726,15 +1737,90 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons = []
     if not connected:
         inline_buttons.append([InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")])
-    inline_buttons.append([InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")])
-    inline_buttons.append([InlineKeyboardButton(text="📩 Поддержка", url="https://t.me/support")])
-    inline_buttons.append([InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")])
+    inline_buttons.append([InlineKeyboardButton(text="🗑 Пример: Удалённое сообщение", callback_data="demo:deleted")])
+    inline_buttons.append([InlineKeyboardButton(text="✏️ Пример: Изменённое сообщение", callback_data="demo:edited")])
+    inline_buttons.append([InlineKeyboardButton(text="📸 Пример: Исчезающее медиа", callback_data="demo:media")])
+    inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:main")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
     if is_call:
         await safe_edit(event, HELP_TEXT, reply_markup=kb)
         await event.answer()
     else:
         await event.answer(HELP_TEXT, reply_markup=kb)
+
+
+# ── Демо-примеры ──
+
+@user_router.callback_query(F.data == "demo:deleted")
+async def demo_deleted(call: CallbackQuery):
+    uid = call.from_user.id
+    now_str = _now_str()
+    text = (
+        f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> <b>Сообщение удалено</b>\n"
+        f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
+        f"└ <tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> <a href=\"tg://user?id=123456\">Пример Пользователь</a>\n\n"
+        f"<tg-emoji emoji-id=\"5197288647275071607\">💬</tg-emoji> Привет, я удалю это сообщение\n\n"
+        f"<i>— это пример уведомления об удалённом сообщении</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ])
+    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+@user_router.callback_query(F.data == "demo:edited")
+async def demo_edited(call: CallbackQuery):
+    uid = call.from_user.id
+    now_str = _now_str()
+    text = (
+        f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение изменено</b>\n\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> <a href=\"tg://user?id=123456\">Пример Пользователь</a>\n\n"
+        f"<b>Было:</b>\n"
+        f"Я дома, приду в 7 вечера\n\n"
+        f"<b>Стало:</b>\n"
+        f"<s>Я дома, приду в 7 вечера</s> → Я задержусь, приду позже\n\n"
+        f"<i>— это пример уведомления об изменённом сообщении</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ])
+    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+@user_router.callback_query(F.data == "demo:media")
+async def demo_media(call: CallbackQuery, bot: Bot):
+    uid = call.from_user.id
+    # Шаг 1: отправляем инструкцию про исчезающее медиа
+    text_step1 = (
+        f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Пример: Исчезающее медиа</b>\n\n"
+        f"Представь, что тебе прислали исчезающее фото.\n\n"
+        f"<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> <b>Не открывай сразу!</b> Файл исчезнет.\n\n"
+        f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Чтобы сохранить:</b>\n"
+        f"Нажми и удержи → <b>Ответить</b> → напиши: <code>!!</code> или <code>🔥</code>\n\n"
+        f"После этого бот скачает и пришлёт тебе файл.\n\n"
+        f"<i>Ответь на это сообщение <code>!!</code> или 🔥 чтобы увидеть пример уведомления:</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ])
+    sent = await call.message.answer(text_step1, reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+    # Шаг 2: отправляем шаблон уведомления как будто бот скачал медиа
+    import asyncio
+    await asyncio.sleep(1)
+    now_str = _now_str()
+    text_step2 = (
+        f"<tg-emoji emoji-id=\"5433811242135331842\">📥</tg-emoji> <b>Скачанное фото</b>\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: <a href=\"tg://user?id=123456\">Пример Пользователь</a>\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
+        f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Исчезающее медиа перехвачено!</b>\n\n"
+        f"<i>— это шаблон уведомления когда бот скачал исчезающее медиа</i>"
+    )
+    kb2 = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")],
+    ])
+    await call.message.answer(text_step2, reply_markup=kb2, parse_mode="HTML")
 
 # ── Покупка ──
 
