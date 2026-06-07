@@ -908,16 +908,18 @@ START_PHOTO_URL = "https://i.imgur.com/placeholder.jpg"  # заменить на
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
-        f"<b>Добро пожаловать в ShadowSMSq_bot <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n"
+        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Добро пожаловать в ShadowSMSq_bot</b>\n"
         f"<i>{first_name}, я перехватываю то, что другие пытаются скрыть.</i>\n\n"
         f"<b>Возможности бота:</b>\n"
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
-        f"<blockquote><b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> <tg-emoji emoji-id=\"5852777596688797905\">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
-        f"2. Перейдите в • <tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> <b>Автоматизацию чатов</b> •\n\n"
-        f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
-        f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">сердце</tg-emoji>"
+        f"<b>Подключение:</b>\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code>\n"
+        f"<tg-emoji emoji-id=\"5852777596688797905\">стрелка влево</tg-emoji> нажми чтобы скопировать\n\n"
+        f"2. Перейдите в ⚡️ <b>Автоматизацию чатов</b>\n\n"
+        f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code>\n\n"
+        f"Бот сам пришлёт уведомление после подключения. "
+        f"<tg-emoji emoji-id=\"5449505950283078474\">сердце</tg-emoji>"
     )
 
 HELP_TEXT = (
@@ -1259,7 +1261,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             await bot.download_file(fl.file_path, file_path)
             await bot.send_video_note(owner_id, FSInputFile(file_path))
             await bot.send_message(owner_id,
-                f"<tg-emoji emoji-id=\"5433811242135331842\">📥</tg-emoji> <b>Скачанный кружок <tg-emoji emoji-id=\"5260379144167890225\">⬆</tg-emoji>️</b>\n"
+                f"<tg-emoji emoji-id=\"5433811242135331842\">📥</tg-emoji> <tg-emoji emoji-id=\"5260379144167890225\">⬆</tg-emoji>️ <b>Скачанный кружок</b>\n"
                 f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
                 parse_mode="HTML", reply_markup=_lk_kb)
@@ -1398,7 +1400,7 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
             await bot.send_video_note(owner_id, FSInputFile(file_path))
             await bot.send_message(
                 owner_id,
-                f"<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> <b>Скачан кружок <tg-emoji emoji-id=\"5260379144167890225\">⬆</tg-emoji>️</b>\n<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
+                f"<tg-emoji emoji-id=\"5420315771991497307\">🔥</tg-emoji> <tg-emoji emoji-id=\"5260379144167890225\">⬆</tg-emoji>️ <b>Скачан кружок</b>\n<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> От: {sender_link}\n<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}",
                 parse_mode="HTML",
             )
         elif mtype == "голосовое":
@@ -1902,7 +1904,7 @@ async def show_plans(event, state: FSMContext = None):
         f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>1 месяц</b> · {PLANS['month']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
         f"<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji> <b>3 месяца</b> · {PLANS['three']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
         f"<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>1 год</b> · {PLANS['year']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
-        f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
+        f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <i>Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if is_call:
         await safe_edit(event, text, reply_markup=plans_kb())
@@ -2985,7 +2987,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
                 f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок от @Sxqsxq</b>\n\n"
                 f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
                 f"<tg-emoji emoji-id=\"5327779391634153863\">бесконечный смайл</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
-                f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
+                f"Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji>",
                 parse_mode="HTML")
         except: pass
     else:
@@ -3002,7 +3004,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
                 f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
                 f"⏳ Срок: <b>{days} дн.</b>\n"
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-                f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
+                f"Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji>",
                 parse_mode="HTML")
         except: pass
 
