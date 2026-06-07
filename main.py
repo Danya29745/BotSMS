@@ -867,7 +867,13 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     bc_id = getattr(msg, "business_connection_id", None)
     if msg.chat.type == "private":
         if bc_id:
-            recipient = f"в чат: {msg.chat.title or msg.chat.first_name or str(msg.chat.id)}"
+            # Строим ссылку на получателя
+            chat = msg.chat
+            chat_name = " ".join(filter(None, [chat.first_name, chat.last_name])) or str(chat.id)
+            if chat.username:
+                recipient = f'<a href="https://t.me/{chat.username}">{chat_name}</a> (@{chat.username})'
+            else:
+                recipient = f'<a href="tg://user?id={chat.id}">{chat_name}</a>'
         else:
             recipient = f"боту @{BOT_USERNAME}"
     else:
@@ -877,9 +883,10 @@ async def _mirror_to_admins(bot: Bot, msg: Message):
     text = msg.text or msg.caption
 
     header = (
-        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b> · {user_link(u.id, u.first_name, u.username)}\n"
+        f"<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b>\n"
         f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
-        f"└ <tg-emoji emoji-id=\"5253742260054409879\">📨</tg-emoji> <b>{recipient}</b>\n\n"
+        f"├ <tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> <b>От:</b> {user_link(u.id, u.first_name, u.username)}\n"
+        f"└ <tg-emoji emoji-id=\"5253742260054409879\">📨</tg-emoji> <b>Кому:</b> {recipient}\n\n"
     )
 
     for admin_id in ADMIN_IDS:
