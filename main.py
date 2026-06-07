@@ -553,8 +553,8 @@ def plans_kb():
     t_pct = round((1 - t / (m * 3)) * 100)
     y_pct = round((1 - y / (m * 12)) * 100)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"📅 1 месяц · {m} ⭐",             callback_data="plan:month")],
-        [InlineKeyboardButton(text=f"📦 3 месяца · {t} ⭐  −{t_pct}%", callback_data="plan:three")],
+        [InlineKeyboardButton(text=f"🏆 1 месяц · {m} ⭐",             callback_data="plan:month")],
+        [InlineKeyboardButton(text=f"💎 3 месяца · {t} ⭐  −{t_pct}%", callback_data="plan:three")],
         [InlineKeyboardButton(text=f"👑 1 год · {y} ⭐  −{y_pct}%",    callback_data="plan:year")],
         [InlineKeyboardButton(text="🏠 Главное меню",                   callback_data="u:main")],
     ])
@@ -625,10 +625,6 @@ def target_detail_kb(t: dict) -> InlineKeyboardMarkup:
 # ══════════════════════════════════════════════
 
 START_PHOTO_URL   = os.getenv("START_PHOTO_URL", "")    # file_id или URL для /start
-CABINET_PHOTO_ID  = os.getenv("CABINET_PHOTO_ID", "https://i.ibb.co/9m4gJBZQ/cabinet-image.jpg")
-PLANS_PHOTO_ID    = os.getenv("PLANS_PHOTO_ID",   "https://i.ibb.co/CKC9P7bn/plans-image.jpg")
-SETTINGS_PHOTO_ID = os.getenv("SETTINGS_PHOTO_ID", "https://i.ibb.co/RpxVX9Zw/notifications-image.jpg")
-HELP_PHOTO_ID     = os.getenv("HELP_PHOTO_ID",    "https://i.ibb.co/ybKXwQ7/help-image.jpg")
 
 async def start_text(uid: int, first_name: str) -> str:
     return (
@@ -645,54 +641,14 @@ async def start_text(uid: int, first_name: str) -> str:
     )
 
 async def send_section(event, text: str, kb, photo_id: str = ""):
-    """Редактирует caption существующего фото или отправляет новое."""
+    """Простая отправка/редактирование без фото."""
     is_call = isinstance(event, CallbackQuery)
     msg = event.message if is_call else event
-
     if is_call:
-        # Всегда пробуем edit_caption — если сообщение с фото, сработает
-        try:
-            await msg.edit_caption(caption=text, parse_mode="HTML", reply_markup=kb)
-            await event.answer()
-            return
-        except Exception:
-            pass
-        # edit_caption не сработал (текстовое сообщение) — пробуем edit_text
-        if not photo_id:
-            try:
-                await msg.edit_text(text, parse_mode="HTML", reply_markup=kb)
-                await event.answer()
-                return
-            except Exception:
-                pass
-        # Нужно отправить фото — удаляем старое текстовое сообщение
-        try: await msg.delete()
-        except Exception: pass
-        try:
-            if photo_id.startswith("http"):
-                from aiogram.types import URLInputFile
-                photo_src = URLInputFile(photo_id, filename="image.jpg")
-            else:
-                photo_src = photo_id
-            await msg.answer_photo(photo=photo_src, caption=text,
-                                   reply_markup=kb, parse_mode="HTML")
-        except Exception:
-            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
-        await event.answer()
+        await safe_edit(event, text, reply_markup=kb)
     else:
-        if photo_id:
-            try:
-                if photo_id.startswith("http"):
-                    from aiogram.types import URLInputFile
-                    photo_src = URLInputFile(photo_id, filename="image.jpg")
-                else:
-                    photo_src = photo_id
-                await msg.answer_photo(photo=photo_src, caption=text,
-                                       reply_markup=kb, parse_mode="HTML")
-            except Exception:
-                await msg.answer(text, reply_markup=kb, parse_mode="HTML")
-        else:
-            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+        await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+
 
 HELP_TEXT = (
     f"<tg-emoji emoji-id=\"5226512880362332956\">📖</tg-emoji> <b>Как работает ShadowSMSq</b>\n\n"
@@ -1408,9 +1364,6 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
         text = (
             f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>ShadowSMSq успешно подключён!</b>\n\n"
             f"Для начала работы оформите подписку.\n\n"
-            f"🏆 1 месяц · {PLANS['month']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
-            f"💎 3 месяца · {PLANS['three']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
-            f"<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> 1 год · {PLANS['year']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>"
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💎 Тарифы", callback_data="u:plans")],
@@ -1588,7 +1541,7 @@ async def cb_main(event, state: FSMContext = None):
             [InlineKeyboardButton(text="💎 Продлить подписку", callback_data="u:plans")],
         ])
 
-    await send_section(event, text, kb, photo_id=CABINET_PHOTO_ID)
+    await send_section(event, text, kb)
 
 @user_router.callback_query(F.data == "u:activity")
 async def cb_activity(call: CallbackQuery):
@@ -1642,12 +1595,9 @@ async def show_plans(event, state: FSMContext = None):
         f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранение исчезающих медиа\n"
         f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> Работа через Автоматизацию Telegram\n"
         f"<tg-emoji emoji-id=\"5242628160297641831\">🔔</tg-emoji> Мгновенные уведомления\n\n"
-        f"🏆 <b>1 месяц</b> · {PLANS['month']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>\n"
-        f"💎 <b>3 месяца</b> · {PLANS['three']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['three']['stars'] / (PLANS['month']['stars']*3))*100)}%</i>\n"
-        f"<tg-emoji emoji-id=\"5467406098367521267\">👑</tg-emoji> <b>1 год</b> · {PLANS['year']['stars']} <tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji>  <i>−{round((1 - PLANS['year']['stars'] / (PLANS['month']['stars']*12))*100)}%</i>\n\n"
         f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
-    await send_section(event, text, plans_kb(), photo_id=PLANS_PHOTO_ID)
+    await send_section(event, text, plans_kb())
 
 # ── Подписка ──
 
@@ -1741,7 +1691,7 @@ async def show_settings(event, state: FSMContext = None):
         f"{ico(s['notify_edit'])} {'Включено' if s['notify_edit'] else 'Выключено'} — Изменения сообщений\n"
         f"{ico(s['notify_self_destruct'])} {'Включено' if s['notify_self_destruct'] else 'Выключено'} — Исчезающие медиа"
     )
-    await send_section(event, text, kb, photo_id=SETTINGS_PHOTO_ID)
+    await send_section(event, text, kb)
 
 @user_router.callback_query(F.data.startswith("toggle:"))
 async def cb_toggle(call: CallbackQuery):
@@ -1805,7 +1755,7 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons.append([InlineKeyboardButton(text="📸 Пример: Исчезающее медиа", callback_data="demo:media")])
     inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:main")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
-    await send_section(event, HELP_TEXT, kb, photo_id=HELP_PHOTO_ID)
+    await send_section(event, HELP_TEXT, kb)
 
 
 # ── Демо-примеры ──
