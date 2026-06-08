@@ -150,6 +150,25 @@ async def init_db():
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     await asyncio.get_event_loop().run_in_executor(None, _init_db_sync)
 
+def _kv_set(key: str, value: str):
+    c = _conn()
+    c.execute("INSERT OR REPLACE INTO kv_store (key, value) VALUES (?, ?)", (key, value))
+    c.commit()
+    c.close()
+
+def _kv_get(key: str):
+    c = _conn()
+    row = c.execute("SELECT value FROM kv_store WHERE key=?", (key,)).fetchone()
+    c.close()
+    return row["value"] if row else None
+
+def _load_demo_video_cache():
+    """Загружает сохранённые file_id демо-видео из БД в память при старте."""
+    for key in ("deleted", "edited", "media"):
+        fid = _kv_get(f"demo_video:{key}")
+        if fid:
+            _demo_video_file_ids[key] = fid
+
 def _run(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
 
