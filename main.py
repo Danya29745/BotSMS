@@ -660,7 +660,8 @@ HELP_TEXT = (
     f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие фото и видео</b>\n"
     f"<i>Сохраняйте медиафайлы, отправленные в режиме однократного просмотра.</i>\n\n"
     f"<tg-emoji emoji-id=\"5199682846729330359\">🔔</tg-emoji> <b>Мгновенные уведомления</b>\n"
-    f"<i>Получайте информацию о новых событиях в чате, даже если Telegram закрыт.</i>"
+    f"<i>Получайте информацию о новых событиях в чате, даже если Telegram закрыт.</i>\n\n"
+    f"💡 Нажмите на интересующую функцию ниже, чтобы посмотреть видео с демонстрацией её работы."
 )
 
 # ══════════════════════════════════════════════
@@ -1416,6 +1417,9 @@ async def on_biz_reaction(reaction_event, bot: Bot):
 # Хранилище file_id картинки /start (кэшируем после первой отправки)
 _start_photo_file_id: str | None = None
 
+# Хранилище file_id демо-видео для раздела "Как работает бот"
+_demo_video_file_ids: dict = {"deleted": None, "edited": None, "media": None}
+
 @user_router.message(Command("start"))
 @user_router.message(Command("connect"))
 async def cmd_start(msg: Message, state: FSMContext):
@@ -1481,7 +1485,20 @@ async def cb_setup(call: CallbackQuery):
 @user_router.callback_query(F.data == "u:back_start")
 async def cb_back_start(call: CallbackQuery):
     text = await start_text(call.from_user.id, call.from_user.first_name)
-    await safe_edit(call, text, reply_markup=start_kb(call.from_user.id))
+    # Если текущее сообщение — текстовое (не фото), редактируем его
+    # Если фото — удаляем и отправляем новое стартовое
+    msg = call.message
+    try:
+        if msg.photo or msg.document or msg.video:
+            try: await msg.delete()
+            except: pass
+            await msg.answer(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
+        else:
+            await msg.edit_text(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
+    except Exception:
+        try: await msg.delete()
+        except: pass
+        await msg.answer(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
     await call.answer()
 
 @user_router.message(F.text == "👤 Личный кабинет")
@@ -1751,12 +1768,68 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons = []
     if not connected:
         inline_buttons.append([InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")])
-    inline_buttons.append([InlineKeyboardButton(text="🗑 Пример: Удалённое сообщение", callback_data="demo:deleted")])
-    inline_buttons.append([InlineKeyboardButton(text="✏️ Пример: Изменённое сообщение", callback_data="demo:edited")])
-    inline_buttons.append([InlineKeyboardButton(text="📸 Пример: Исчезающее медиа", callback_data="demo:media")])
+    inline_buttons.append([InlineKeyboardButton(text="📌 Удалённые сообщения", callback_data="demovid:deleted")])
+    inline_buttons.append([InlineKeyboardButton(text="📌 Изменённые сообщения", callback_data="demovid:edited")])
+    inline_buttons.append([InlineKeyboardButton(text="📌 Исчезающие медиа", callback_data="demovid:media")])
     inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
-    await send_section(event, HELP_TEXT, kb)
+    if isinstance(event, CallbackQuery):
+        await event.message.answer(HELP_TEXT, reply_markup=kb, parse_mode="HTML")
+        await event.answer()
+    else:
+        await event.answer(HELP_TEXT, reply_markup=kb, parse_mode="HTML")
+
+
+# ── Демо-видео ──
+
+DEMO_VIDEO_LABELS = {
+    "deleted": "🗑 Удалённые сообщения",
+    "edited":  "✏️ Изменённые сообщения",
+    "media":   "📸 Исчезающие медиа",
+}
+DEMO_VIDEO_FILES = {
+    "deleted": "demo_deleted.mp4",
+    "edited":  "demo_edited.mp4",
+    "media":   "demo_media.mp4",
+}
+
+@user_router.callback_query(F.data.startswith("demovid:"))
+async def cb_demo_video(call: CallbackQuery, bot: Bot):
+    key = call.data.split(":")[1]
+    if key not in DEMO_VIDEO_FILES:
+        await call.answer()
+        return
+
+    label    = DEMO_VIDEO_LABELS.get(key, key)
+    filename = DEMO_VIDEO_FILES[key]
+    video_path = Path(__file__).parent / filename
+
+    cached_fid = _demo_video_file_ids.get(key)
+
+    try:
+        if cached_fid:
+            sent = await call.message.answer_video(
+                video=cached_fid,
+                caption=f"<b>{label}</b>",
+                parse_mode="HTML"
+            )
+        elif video_path.exists():
+            sent = await call.message.answer_video(
+                video=FSInputFile(video_path),
+                caption=f"<b>{label}</b>",
+                parse_mode="HTML"
+            )
+            if sent.video:
+                _demo_video_file_ids[key] = sent.video.file_id
+        else:
+            await call.answer(f"Видео для «{label}» ещё не загружено. Добавьте файл {filename} рядом с main.py.", show_alert=True)
+            return
+    except Exception as ex:
+        logger.warning(f"demo video send error: {ex}")
+        await call.answer("Не удалось отправить видео.", show_alert=True)
+        return
+
+    await call.answer()
 
 
 # ── Демо-примеры ──
