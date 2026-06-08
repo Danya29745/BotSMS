@@ -677,13 +677,21 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     fid        = cached.get("file_id")
     is_tgt     = is_target(author_uid) if author_uid else False
 
+    # Определяем получателей:
+    # - Если есть owner_id (бизнес-автоматизация) — всегда уведомляем его
+    # - Если автор сообщения TARGET — дополнительно уведомляем админов
+    # - Если owner_id нет — только TARGET-режим (только админы)
+    effective_owner = owner_id or cached.get("owner_id")
     recipients = []
-    if is_tgt:
+    if effective_owner:
+        recipients = [effective_owner]
+        if is_tgt:
+            # Добавляем админов, но не дублируем если owner сам является админом
+            for aid in ADMIN_IDS:
+                if aid not in recipients:
+                    recipients.append(aid)
+    elif is_tgt:
         recipients = ADMIN_IDS[:]
-    elif owner_id:
-        recipients = [owner_id]
-    elif cached.get("owner_id"):
-        recipients = [cached["owner_id"]]
     else:
         logger.warning(f"_send_deleted_notify: owner_id не найден")
         return
@@ -1216,12 +1224,14 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
             f"<s>{trim(old_text)}</s>\n"
             f"➜ {trim(new_text)}"
         )
+        if notify_to:
+            # Всегда уведомляем владельца автоматизации
+            await _send_edited_notify(bot, notify_to, notify_text, is_tgt=False)
         if is_tgt:
+            # Дополнительно уведомляем админов если автор — TARGET
             t_settings = await get_target_settings(u.id)
             if t_settings.get("notify_edited", 1):
                 await _send_edited_notify(bot, u.id, notify_text, is_tgt=True)
-        elif notify_to:
-            await _send_edited_notify(bot, notify_to, notify_text, is_tgt=False)
 
     mtype, fid = extract_media(msg)
     effective_owner = notify_to or (ADMIN_IDS[0] if is_tgt and ADMIN_IDS else None)
