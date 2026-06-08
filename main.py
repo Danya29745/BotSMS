@@ -57,9 +57,9 @@ BOT_NAME      = "ShadowSMSq"
 MEDIA_DIR     = Path(os.getenv("MEDIA_DIR", "/app/data/media"))
 
 PLANS = {
-    "month": {"label": "1 месяц",  "days": 30,  "stars": 35,  "desc": "1 месяц"},
-    "three": {"label": "3 месяца", "days": 90,  "stars": 89,  "desc": "3 месяца"},
-    "year":  {"label": "1 год",    "days": 365, "stars": 299, "desc": "1 год"},
+    "month": {"label": "1 месяц",    "days": 30,  "stars": 35,  "desc": "1 месяц"},
+    "three": {"label": "3 месяца",   "days": 90,  "stars": 89,  "desc": "3 месяца"},
+    "year":  {"label": "12 месяцев", "days": 365, "stars": 299, "desc": "12 месяцев"},
 }
 
 # ══════════════════════════════════════════════
