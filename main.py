@@ -27,7 +27,7 @@ except ImportError:
 from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -710,8 +710,8 @@ async def start_text(uid: int, first_name: str) -> str:
         f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
         f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
         f"<blockquote><b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> <tg-emoji emoji-id=\"5852777596688797905\">◀️</tg-emoji> нажми чтобы скопировать\n\n"
-        f"2. Перейдите в • <tg-emoji emoji-id=\"5431449001532594346\">⚡️</tg-emoji> <b>Автоматизацию чатов</b> •\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> нажми чтобы скопировать\n\n"
+        f"2. Перейдите в <b>Автоматизацию чатов</b>\n\n"
         f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
         f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">❤</tg-emoji>"
     )
@@ -2866,7 +2866,7 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
 # Получение file_id для фото разделов (только для админа)
 # ══════════════════════════════════════════════
 
-@admin_router.message(F.photo)
+@admin_router.message(F.photo, StateFilter(None))
 async def adm_get_photo_id(msg: Message):
     if not is_admin(msg.from_user.id): return
     file_id = msg.photo[-1].file_id
@@ -2882,7 +2882,7 @@ async def adm_get_photo_id(msg: Message):
         parse_mode="HTML"
     )
 
-@admin_router.message(F.video)
+@admin_router.message(F.video, StateFilter(None))
 async def adm_get_video_id(msg: Message):
     if not is_admin(msg.from_user.id): return
     file_id = msg.video.file_id
