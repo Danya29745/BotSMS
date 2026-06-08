@@ -512,6 +512,60 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
         try: await msg.answer(text, parse_mode="HTML", **kwargs)
         except: pass
 
+# Кэши file_id для фото разделов (взрыв-анимация)
+_section_photo_cache: dict[str, str | None] = {
+    "help":      None,
+    "main":      None,
+    "plans":     None,
+    "settings":  None,
+    "setup":     None,
+}
+_SECTION_PHOTO_FILES = {
+    "help":     "help_image.jpg",
+    "main":     "cabinet_image.jpg",
+    "plans":    "plans_image.jpg",
+    "settings": "notifications_image.jpg",
+    "setup":    "start_image.jpg",
+}
+
+async def send_with_explosion(call: CallbackQuery, section: str, text: str, kb, bot: Bot = None):
+    """Удаляет старое сообщение и отправляет новое с фото (эффект взрыва)."""
+    msg = call.message
+    photo_path = Path(__file__).parent / _SECTION_PHOTO_FILES.get(section, "start_image.jpg")
+
+    cached_fid = _section_photo_cache.get(section)
+    photo_source = None
+    use_cached = False
+    if cached_fid:
+        photo_source = cached_fid
+        use_cached = True
+    elif photo_path.exists():
+        photo_source = FSInputFile(photo_path)
+
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+
+    try:
+        if photo_source is not None:
+            sent = await msg.answer_photo(
+                photo=photo_source,
+                caption=text,
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            if not use_cached and sent.photo:
+                _section_photo_cache[section] = sent.photo[-1].file_id
+        else:
+            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+    except Exception as ex:
+        logger.warning(f"send_with_explosion [{section}] error: {ex}")
+        try:
+            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+        except Exception:
+            pass
+
 # ══════════════════════════════════════════════
 # КЛАВИАТУРЫ
 # ══════════════════════════════════════════════
@@ -650,7 +704,7 @@ async def send_section(event, text: str, kb, photo_id: str = ""):
 
 
 HELP_TEXT = (
-    "❓ <b>Как работает бот</b>\n\n"
+    "<tg-emoji emoji-id=\"5373026167722876724\">❓</tg-emoji> <b>Как работает бот</b>\n\n"
     "<i>Бот автоматически отслеживает действия в чате и мгновенно отправляет вам уведомления о важных изменениях.</i>\n\n"
     "<b>Возможности бота:</b>\n\n"
     "<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> <b>Удалённые сообщения</b>\n"
@@ -659,7 +713,7 @@ HELP_TEXT = (
     "<blockquote>Узнавайте, что было написано <i>до редактирования</i> и какие изменения были внесены.</blockquote>\n\n"
     "<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие фото и видео</b>\n"
     "<blockquote>Сохраняйте медиафайлы, отправленные в режиме однократного просмотра.</blockquote>\n\n"
-    "<i>Нажмите на интересующую функцию ниже, чтобы посмотреть видео с демонстрацией её работы.</i> 👇"
+    "<i>Нажмите на интересующую функцию ниже, чтобы посмотреть видео с демонстрацией её работы.</i> <tg-emoji emoji-id=\"5368324170671202286\">👇</tg-emoji>"
 )
 
 # ══════════════════════════════════════════════
@@ -1488,7 +1542,7 @@ async def cb_setup(call: CallbackQuery):
         [InlineKeyboardButton(text="🚀 Перейти в Автоматизацию", url="tg://settings/edit")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")],
     ])
-    await safe_edit(call, text, reply_markup=kb)
+    await send_with_explosion(call, "setup", text, kb)
     await call.answer()
 
 @user_router.callback_query(F.data == "u:back_start")
@@ -1598,7 +1652,11 @@ async def cb_main(event, state: FSMContext = None):
             [InlineKeyboardButton(text="💎 Продлить подписку", callback_data="u:plans")],
         ])
 
-    await send_section(event, text, kb)
+    if isinstance(event, CallbackQuery):
+        await send_with_explosion(event, "main", text, kb)
+        await event.answer()
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @user_router.callback_query(F.data == "u:activity")
 async def cb_activity(call: CallbackQuery):
@@ -1622,7 +1680,7 @@ async def cb_activity(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Назад", callback_data="u:main")],
     ])
-    await safe_edit(call, text, reply_markup=kb)
+    await send_with_explosion(call, "main", text, kb)
     await call.answer()
 
 # ── Тарифы ──
@@ -1654,7 +1712,11 @@ async def show_plans(event, state: FSMContext = None):
         f"<tg-emoji emoji-id=\"5242628160297641831\">🔔</tg-emoji> Мгновенные уведомления\n\n"
         f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
-    await send_section(event, text, plans_kb())
+    if isinstance(event, CallbackQuery):
+        await send_with_explosion(event, "plans", text, plans_kb())
+        await event.answer()
+    else:
+        await event.answer(text, reply_markup=plans_kb(), parse_mode="HTML")
 
 # ── Подписка ──
 
@@ -1699,10 +1761,10 @@ async def show_sub(event, state: FSMContext = None):
         [InlineKeyboardButton(text="🏠 Главное меню",      callback_data="u:main")],
     ])
     if is_call:
-        await safe_edit(event, text, reply_markup=kb)
+        await send_with_explosion(event, "plans", text, kb)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=kb)
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
 
 # ── Подключить бота (кнопка клавиатуры) ──
 
@@ -1748,7 +1810,11 @@ async def show_settings(event, state: FSMContext = None):
         f"{ico(s['notify_edit'])} {'Включено' if s['notify_edit'] else 'Выключено'} — Изменения сообщений\n"
         f"{ico(s['notify_self_destruct'])} {'Включено' if s['notify_self_destruct'] else 'Выключено'} — Исчезающие медиа"
     )
-    await send_section(event, text, kb)
+    if isinstance(event, CallbackQuery):
+        await send_with_explosion(event, "settings", text, kb)
+        await event.answer()
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @user_router.callback_query(F.data.startswith("toggle:"))
 async def cb_toggle(call: CallbackQuery):
@@ -1807,14 +1873,16 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons = []
     if not connected:
         inline_buttons.append([InlineKeyboardButton(text="⚡ Подключить бота", callback_data="u:setup")])
-    inline_buttons.append([InlineKeyboardButton(text="📌 Удалённые сообщения", callback_data="demovid:deleted")])
-    inline_buttons.append([InlineKeyboardButton(text="📌 Изменённые сообщения", callback_data="demovid:edited")])
-    inline_buttons.append([InlineKeyboardButton(text="📌 Исчезающие медиа", callback_data="demovid:media")])
+    inline_buttons.append([InlineKeyboardButton(text="🗑 Удалённые сообщения", callback_data="demovid:deleted")])
+    inline_buttons.append([InlineKeyboardButton(text="✏️ Изменённые сообщения", callback_data="demovid:edited")])
+    inline_buttons.append([InlineKeyboardButton(text="💣 Исчезающие медиа", callback_data="demovid:media")])
     inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
-    await send_section(event, text=HELP_TEXT, kb=kb)
     if isinstance(event, CallbackQuery):
+        await send_with_explosion(event, "help", text=HELP_TEXT, kb=kb)
         await event.answer()
+    else:
+        await event.answer(HELP_TEXT, reply_markup=kb, parse_mode="HTML")
 
 
 # ── Демо-видео ──
@@ -1823,6 +1891,22 @@ DEMO_VIDEO_LABELS = {
     "deleted": "🗑 Удалённые сообщения",
     "edited":  "✏️ Изменённые сообщения",
     "media":   "📸 Исчезающие медиа",
+}
+
+DEMO_VIDEO_CAPTIONS = {
+    "deleted": (
+        "🗑 <b>Удалённые сообщения</b>\n\n"
+        "<i>Демонстрация получения уведомления после удаления сообщения собеседником.</i>"
+    ),
+    "edited": (
+        "✏️ <b>Изменённые сообщения</b>\n\n"
+        "<i>Демонстрация отслеживания изменений текста и просмотра исходного сообщения.</i>"
+    ),
+    "media": (
+        "📸 <b>Исчезающие медиа</b>\n\n"
+        "<i>Демонстрация получения медиа, которые автоматически исчезают после просмотра или по таймеру.</i>\n\n"
+        "<tg-emoji emoji-id=\"5368324170671202286\">❗</tg-emoji> <b>Важно</b> — Для получения медиа ответьте на сообщение символами <code>!!</code> или эмодзи 🔥"
+    ),
 }
 DEMO_VIDEO_FILES = {
     "deleted": "demo_deleted.mp4",
@@ -1843,17 +1927,18 @@ async def cb_demo_video(call: CallbackQuery, bot: Bot):
 
     cached_fid = _demo_video_file_ids.get(key)
 
+    caption = DEMO_VIDEO_CAPTIONS.get(key, f"<b>{label}</b>")
     try:
         if cached_fid:
             sent = await call.message.answer_video(
                 video=cached_fid,
-                caption=f"<b>{label}</b>",
+                caption=caption,
                 parse_mode="HTML"
             )
         elif video_path.exists():
             sent = await call.message.answer_video(
                 video=FSInputFile(video_path),
-                caption=f"<b>{label}</b>",
+                caption=caption,
                 parse_mode="HTML"
             )
             if sent.video:
