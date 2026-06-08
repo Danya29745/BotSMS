@@ -118,6 +118,10 @@ def _init_db_sync():
         owner_id      INTEGER NOT NULL,
         connected_at  TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS kv_store (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS targets (
         target_user_id  INTEGER PRIMARY KEY,
         set_by          INTEGER NOT NULL,
@@ -2879,12 +2883,13 @@ async def adm_get_video_id(msg: Message):
 
     if matched_key:
         _demo_video_file_ids[matched_key] = file_id
+        _kv_set(f"demo_video:{matched_key}", file_id)
         label = {"deleted": "🗑 Удалённые сообщения", "edited": "✏️ Изменённые сообщения", "media": "💣 Исчезающие медиа"}.get(matched_key, matched_key)
         await msg.answer(
-            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>file_id сохранён в кэш!</b>\n\n"
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>file_id сохранён навсегда!</b>\n\n"
             f"Раздел: <b>{label}</b>\n"
             f"<code>{file_id}</code>\n\n"
-            f"<i>Теперь это видео будет отправляться мгновенно до перезапуска бота.</i>",
+            f"<i>Видео сохранено в базу данных — работает после перезапуска бота.</i>",
             parse_mode="HTML"
         )
     else:
@@ -2907,6 +2912,7 @@ async def main():
     dp  = Dispatcher()
     dp.include_routers(admin_router, user_router, event_router, payment_router)
     await init_db()
+    _load_demo_video_cache()
     await restore_biz_connections()
     await restore_targets()
     await bot.set_my_commands([
