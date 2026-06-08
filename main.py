@@ -57,9 +57,9 @@ BOT_NAME      = "ShadowSMSq"
 MEDIA_DIR     = Path(os.getenv("MEDIA_DIR", "/app/data/media"))
 
 PLANS = {
-    "month": {"label": "1 месяц",  "days": 30,  "stars": 35,  "desc": "1 месяц"},
-    "three": {"label": "3 месяца", "days": 90,  "stars": 89,  "desc": "3 месяца"},
-    "year":  {"label": "1 год",    "days": 365, "stars": 299, "desc": "1 год"},
+    "month": {"label": "1 месяц",  "days": 30,  "stars": 100, "desc": "1 месяц"},
+    "three": {"label": "3 месяца", "days": 90,  "stars": 300, "desc": "3 месяца"},
+    "year":  {"label": "1 год",    "days": 365, "stars": 700, "desc": "1 год"},
 }
 
 # ══════════════════════════════════════════════
@@ -553,9 +553,9 @@ def plans_kb():
     t_pct = round((1 - t / (m * 3)) * 100)
     y_pct = round((1 - y / (m * 12)) * 100)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"🏆 1 месяц · {m} ⭐",             callback_data="plan:month")],
-        [InlineKeyboardButton(text=f"💎 3 месяца · {t} ⭐  −{t_pct}%", callback_data="plan:three")],
-        [InlineKeyboardButton(text=f"👑 1 год · {y} ⭐  −{y_pct}%",    callback_data="plan:year")],
+        [InlineKeyboardButton(text=f"💎 1 месяц · {m} ⭐",   callback_data="plan:month")],
+        [InlineKeyboardButton(text=f"💎 3 месяца · {t} ⭐", callback_data="plan:three")],
+        [InlineKeyboardButton(text=f"💎 1 год · {y} ⭐",    callback_data="plan:year")],
         [InlineKeyboardButton(text="🏠 Главное меню",                   callback_data="u:main")],
     ])
 
