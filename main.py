@@ -651,15 +651,15 @@ async def send_section(event, text: str, kb, photo_id: str = ""):
 
 HELP_TEXT = (
     "❓ <b>Как работает бот</b>\n\n"
-    "<i>Бот автоматически отслеживает действия в выбранном чате и мгновенно отправляет вам уведомления о важных изменениях.</i>\n\n"
+    "<i>Бот автоматически отслеживает действия в чате и мгновенно отправляет вам уведомления о важных изменениях.</i>\n\n"
     "<b>Возможности бота:</b>\n\n"
-    "🗑 <b>Удалённые сообщения</b>\n"
+    "<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> <b>Удалённые сообщения</b>\n"
     "<blockquote>Получайте текст сообщений даже после того, как собеседник их удалит.</blockquote>\n\n"
-    "✏️ <b>Изменённые сообщения</b>\n"
+    "<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Изменённые сообщения</b>\n"
     "<blockquote>Узнавайте, что было написано <i>до редактирования</i> и какие изменения были внесены.</blockquote>\n\n"
-    "📸 <b>Исчезающие фото и видео</b>\n"
+    "<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие фото и видео</b>\n"
     "<blockquote>Сохраняйте медиафайлы, отправленные в режиме однократного просмотра.</blockquote>\n\n"
-    "👇 <i>Нажмите на интересующую функцию ниже, чтобы посмотреть видео с демонстрацией её работы.</i> 👇"
+    "<i>Нажмите на интересующую функцию ниже, чтобы посмотреть видео с демонстрацией её работы.</i> 👇"
 )
 
 # ══════════════════════════════════════════════
@@ -1499,20 +1499,42 @@ async def cb_setup(call: CallbackQuery):
 @user_router.callback_query(F.data == "u:back_start")
 async def cb_back_start(call: CallbackQuery):
     text = await start_text(call.from_user.id, call.from_user.first_name)
-    # Если текущее сообщение — текстовое (не фото), редактируем его
-    # Если фото — удаляем и отправляем новое стартовое
     msg = call.message
+    uid = call.from_user.id
+
+    global _start_photo_file_id
+    photo_path = Path(__file__).parent / "start_image.jpg"
+
+    photo_source = None
+    use_cached = False
+    if _start_photo_file_id:
+        photo_source = _start_photo_file_id
+        use_cached = True
+    elif photo_path.exists():
+        photo_source = FSInputFile(photo_path)
+    elif START_PHOTO_URL:
+        photo_source = URLInputFile(START_PHOTO_URL, filename="start.jpg")
+
     try:
-        if msg.photo or msg.document or msg.video:
-            try: await msg.delete()
-            except: pass
-            await msg.answer(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
-        else:
-            await msg.edit_text(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
+        await msg.delete()
     except Exception:
-        try: await msg.delete()
-        except: pass
-        await msg.answer(text, reply_markup=start_kb(call.from_user.id), parse_mode="HTML")
+        pass
+
+    try:
+        if photo_source is not None:
+            sent = await msg.answer_photo(
+                photo=photo_source,
+                caption=text,
+                reply_markup=start_kb(uid),
+                parse_mode="HTML"
+            )
+            if not use_cached and sent.photo:
+                _start_photo_file_id = sent.photo[-1].file_id
+        else:
+            await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
+    except Exception as ex:
+        logger.warning(f"back_start photo send error: {ex}")
+        await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
     await call.answer()
 
 @user_router.message(F.text == "👤 Личный кабинет")
