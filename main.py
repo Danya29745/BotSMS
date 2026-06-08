@@ -437,9 +437,9 @@ def user_link(uid, first_name, username=None):
     uname = f" (@{username})" if username else ""
     return f'<a href="tg://user?id={uid}">{name}</a>{uname}'
 
-def trim(t, n=400):
+def trim(t, n=None):
     if not t: return "<i>пусто</i>"
-    return (t[:n] + "…") if len(t) > n else t
+    return t
 
 def extract_media(msg: Message):
     if msg.photo:      return "фото",          msg.photo[-1].file_id
