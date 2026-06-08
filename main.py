@@ -1805,10 +1805,8 @@ async def show_settings(event, state: FSMContext = None):
     ])
     text = (
         f"<tg-emoji emoji-id=\"5341715473882955310\">⚙</tg-emoji>️ <b>Настройки отслеживания</b>\n\n"
-        f"Выберите функции, которые хотите использовать.\n\n"
-        f"{ico(s['notify_delete'])} {'Включено' if s['notify_delete'] else 'Выключено'} — Удалённые сообщения\n"
-        f"{ico(s['notify_edit'])} {'Включено' if s['notify_edit'] else 'Выключено'} — Изменения сообщений\n"
-        f"{ico(s['notify_self_destruct'])} {'Включено' if s['notify_self_destruct'] else 'Выключено'} — Исчезающие медиа"
+        f"<tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji> — Включено\n"
+        f"<tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji> — Выключено"
     )
     if isinstance(event, CallbackQuery):
         await send_with_explosion(event, "settings", text, kb)
