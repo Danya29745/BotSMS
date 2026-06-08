@@ -650,27 +650,17 @@ async def send_section(event, text: str, kb, photo_id: str = ""):
 
 
 HELP_TEXT = (
-    f"<tg-emoji emoji-id=\"5226512880362332956\">📖</tg-emoji> <b>Как работает ShadowSMSq</b>\n\n"
-
-    f"Бот подключается к твоему Telegram через <b>Автоматизацию</b> и работает в фоне — "
-    f"ты ничего не замечаешь, но бот всё видит.\n\n"
-
+    f"❓ <b>Как работает бот</b>\n\n"
+    f"Бот автоматически отслеживает действия в выбранном чате и мгновенно отправляет вам уведомления о важных изменениях.\n\n"
+    f"<b>Возможности бота:</b>\n\n"
     f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> <b>Удалённые сообщения</b>\n"
-    f"Собеседник написал что-то и удалил? Бот уже сохранил.\n"
-    f"<i>Пример: Маша написала «ненавижу тебя» и сразу удалила — бот пришлёт тебе копию.</i>\n\n"
-
-    f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Изменения сообщений</b>\n"
-    f"Собеседник отредактировал сообщение — бот пришлёт <b>оригинал</b> до правки.\n"
-    f"<i>Пример: «Я дома» → исправил на «Я задержусь» — ты увидишь оба варианта.</i>\n\n"
-
-    f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие медиа</b>\n"
-    f"Прислали фото или видео «один раз»? Не открывай сразу!\n\n"
-    f"<tg-emoji emoji-id=\"5260293700088511294\">⛔</tg-emoji> <b>Открыл — файл исчезнет, бот не успеет его забрать.</b>\n\n"
-    f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Как сохранить:</b>\n"
-    f"Нажми и удержи сообщение → <b>Ответить</b> → напиши: <code>!!</code> или <code>🔥</code>\n\n"
-    f"Бот скачает файл и сразу пришлёт тебе <tg-emoji emoji-id=\"5471984997361523302\">👌</tg-emoji>\n\n"
-
-    f"<i>Telegram Premium не нужен — работает у всех</i>"
+    f"<i>Получайте текст сообщений даже после того, как собеседник их удалит.</i>\n\n"
+    f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Изменённые сообщения</b>\n"
+    f"<i>Узнавайте, что было написано до редактирования и какие изменения были внесены.</i>\n\n"
+    f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> <b>Исчезающие фото и видео</b>\n"
+    f"<i>Сохраняйте медиафайлы, отправленные в режиме однократного просмотра.</i>\n\n"
+    f"<tg-emoji emoji-id=\"5199682846729330359\">🔔</tg-emoji> <b>Мгновенные уведомления</b>\n"
+    f"<i>Получайте информацию о новых событиях в чате, даже если Telegram закрыт.</i>"
 )
 
 # ══════════════════════════════════════════════
@@ -1764,7 +1754,7 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons.append([InlineKeyboardButton(text="🗑 Пример: Удалённое сообщение", callback_data="demo:deleted")])
     inline_buttons.append([InlineKeyboardButton(text="✏️ Пример: Изменённое сообщение", callback_data="demo:edited")])
     inline_buttons.append([InlineKeyboardButton(text="📸 Пример: Исчезающее медиа", callback_data="demo:media")])
-    inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:main")])
+    inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
     await send_section(event, HELP_TEXT, kb)
 
