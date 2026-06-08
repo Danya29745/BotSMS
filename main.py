@@ -132,6 +132,12 @@ def _init_db_sync():
         notify_viewonce INTEGER DEFAULT 1
     );
     """)
+    # Миграция users: добавляем ever_connected
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN ever_connected INTEGER DEFAULT 0")
+        c.commit()
+    except Exception:
+        pass
     # Миграция targets
     for col, default in [
         ("notify_messages", 1), ("notify_deleted", 1),
@@ -187,6 +193,7 @@ async def save_biz_connection(connection_id: str, owner_id: int):
         c.execute("""INSERT INTO business_connections (connection_id, owner_id)
             VALUES (?, ?) ON CONFLICT(connection_id) DO UPDATE SET owner_id=excluded.owner_id""",
             (connection_id, owner_id))
+        c.execute("UPDATE users SET ever_connected=1 WHERE user_id=?", (owner_id,))
         c.commit(); c.close()
     await _run(_f)
 
@@ -2079,7 +2086,7 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
     )
     await bot.send_invoice(
         chat_id=uid,
-        title=f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> {BOT_NAME} · {plan['label']}",
+        title=f"👁 {BOT_NAME} · {plan['label']}",
         description=f"Доступ ко всем функциям {BOT_NAME} · {plan['desc']}",
         payload=f"sub_{plan_key}_{uid}",
         currency="XTR",
@@ -2459,14 +2466,19 @@ async def adm_connections(call: CallbackQuery):
     def _get_all_connections():
         c = _conn()
         rows = c.execute("""
-            SELECT bc.owner_id, bc.connected_at,
+            SELECT u.user_id AS owner_id,
                    u.first_name, u.username,
-                   s.expires_at
-            FROM business_connections bc
-            LEFT JOIN users u ON u.user_id = bc.owner_id
-            LEFT JOIN subscriptions s ON s.user_id = bc.owner_id
-            GROUP BY bc.owner_id
-            ORDER BY bc.connected_at DESC
+                   u.ever_connected,
+                   s.expires_at,
+                   bc.connected_at
+            FROM users u
+            LEFT JOIN subscriptions s ON s.user_id = u.user_id
+            LEFT JOIN (
+                SELECT owner_id, MAX(connected_at) as connected_at
+                FROM business_connections GROUP BY owner_id
+            ) bc ON bc.owner_id = u.user_id
+            WHERE u.ever_connected = 1
+            ORDER BY bc.connected_at DESC NULLS LAST
         """).fetchall()
         c.close()
         return [dict(r) for r in rows]
@@ -2481,7 +2493,8 @@ async def adm_connections(call: CallbackQuery):
 
     from datetime import datetime as _dt
     now = _dt.now()
-    lines = [f"<tg-emoji emoji-id=\"5310278924616356636\">🔗</tg-emoji> <b>Подключено к Автоматизации</b> ({len(rows)}):\n"]
+    active_now = sum(1 for r in rows if r["owner_id"] in set(_biz_owners.values()))
+    lines = [f"🔗 <b>Подключения к Автоматизации</b> ({len(rows)} всего · {active_now} активны):\n"]
 
     for r in rows:
         uid   = r["owner_id"]
@@ -2506,12 +2519,11 @@ async def adm_connections(call: CallbackQuery):
         active_mark = " <tg-emoji emoji-id=\"5267229058659264159\">🟢</tg-emoji>" if is_active else " <tg-emoji emoji-id=\"5269560272418250579\">🔴</tg-emoji>"
         tgt_mark = " <tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji>" if is_target(uid) else ""
 
+        conn_str = f"последнее: {conn_date}" if conn_date != "—" else "не подключался"
         lines.append(
             f"{active_mark} <code>{uid}</code> | {name} | {uname}\n"
-            f"   {sub_mark}{tgt_mark} | подключён: {conn_date}"
+            f"   {sub_mark}{tgt_mark} | {conn_str}"
         )
-
-    lines.append("\n<i>🟢 активен сейчас  🔴 отключён  ✅ есть подписка  ❌ нет</i>")
     text = "\n".join(lines)
     await safe_edit(call, text, reply_markup=adm_back_kb())
     await call.answer()
@@ -2766,8 +2778,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> ID: <code>{uid}</code>\n"
             f"<tg-emoji emoji-id=\"5290034776655297138\">♾</tg-emoji> Срок: <b>Бессрочно</b>",
             reply_markup=adm_back_kb())
-        await call.answer("<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> Готово!",
-        parse_mode="HTML")
+        await call.answer("✅ Готово!")
         try:
             await call.bot.send_message(uid,
                 f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
