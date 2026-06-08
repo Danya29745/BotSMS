@@ -926,14 +926,16 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     Работает для: фото, видео, видеосообщение (кружок), голосовое.
     Файл скачивается во временную папку и сразу удаляется после отправки.
 
-    Триггер — любой текстовый ответ на исчезающее медиа (is_view_once=1 в кэше).
-    Обычные медиа игнорируются — владелец может отвечать на них свободно.
+    Триггер — ответ с текстом "!!" или реакция 🔥 на медиа.
+    Обычные ответы без триггера игнорируются.
     """
     if not msg.reply_to_message:
         return False
 
-    # Нужен текст — молчаливые реакции и пересылки не считаются
-    if not msg.text:
+    # Сохраняем медиа ТОЛЬКО если пользователь ответил триггером "!!" или "🔥"
+    # Telegram не передаёт флаг view_once, поэтому различить нельзя — только триггер.
+    trigger_text = (msg.text or "").strip()
+    if trigger_text not in ("!!", "🔥"):
         return False
 
     reply = msg.reply_to_message
@@ -941,13 +943,6 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     has_media = (reply.photo or reply.video or reply.video_note or
                  reply.voice or reply.audio or reply.document)
     if not has_media:
-        return False
-
-    # Проверяем по кэшу: скачиваем ТОЛЬКО если это было исчезающее медиа.
-    # Telegram не передаёт флаг view_once в reply_to_message, но бот уже
-    # сохранил его при первом получении сообщения (is_view_once=1 в БД).
-    cached = await get_cached_message(reply.chat.id, reply.message_id)
-    if not cached or not cached.get("is_view_once"):
         return False
     now_str = _now_str()
     sender_name = reply.from_user.first_name if reply.from_user else "Неизвестно"
