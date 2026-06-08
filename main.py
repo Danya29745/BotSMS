@@ -1546,17 +1546,25 @@ async def cb_main(event, state: FSMContext = None):
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", callback_data="u:setup")],
-            [InlineKeyboardButton(text="❓ Как это работает", callback_data="u:help")],
+            [InlineKeyboardButton(text="<tg-emoji emoji-id=\"5357419403325481979\">❓</tg-emoji> Как это работает", callback_data="u:help")],
         ])
     elif subscribed or is_admin(uid):
+        s = await get_user_settings(uid)
+        def _feat(key, emoji_id, emoji_fb, label):
+            on = s.get(key, 1)
+            icon = f"<tg-emoji emoji-id=\"{emoji_id}\">{emoji_fb}</tg-emoji>" if on else "<tg-emoji emoji-id=\"5465665476971471368\">❌</tg-emoji>"
+            return f"{icon}  {label}"
+        features = "\n".join([
+            _feat("notify_delete",       "5445267414562389170", "🗑", "Удалённые сообщения"),
+            _feat("notify_edit",         "5334673106202010226", "✏", "Изменения сообщений"),
+            _feat("notify_self_destruct","5469654973308476699", "📸", "Исчезающие медиа"),
+        ])
         text = (
             f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>ShadowSMSq</b>\n"
             f"{status}\n"
             f"{access}\n\n"
             f"<b>Активные функции:</b>\n"
-            f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji>  Удалённые сообщения\n"
-            f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️  Изменения сообщений\n"
-            f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji>  Исчезающие медиа"
+            f"{features}"
         )
         kb = main_kb()
     else:
@@ -1783,11 +1791,9 @@ async def show_help(event, state: FSMContext = None):
     inline_buttons.append([InlineKeyboardButton(text="📌 Исчезающие медиа", callback_data="demovid:media")])
     inline_buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="u:back_start")])
     kb = InlineKeyboardMarkup(inline_keyboard=inline_buttons)
+    await send_section(event, text=HELP_TEXT, kb=kb)
     if isinstance(event, CallbackQuery):
-        await event.message.answer(HELP_TEXT, reply_markup=kb, parse_mode="HTML")
         await event.answer()
-    else:
-        await event.answer(HELP_TEXT, reply_markup=kb, parse_mode="HTML")
 
 
 # ── Демо-видео ──
