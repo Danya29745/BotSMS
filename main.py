@@ -836,11 +836,11 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     )
 
     no_sub_notice = (
-        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Сообщение было удалено</b>\n\n"
-        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n"
-        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Автор: {sender}\n\n"
-        f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-        f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
+        f"🗑 <b>Сообщение было удалено</b>\n\n"
+        f"📅 {now_str}\n"
+        f"👤 Автор: {sender}\n\n"
+        f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+        f"👇"
     )
 
     async def _deliver(to: int):
@@ -887,8 +887,12 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                     await _deliver(r)
             else:
                 # Сохраняем событие — пользователь увидит его после оплаты подписки
-                await save_pending_notification(r, "deleted", caption, mtype, fid)
                 try:
+                    await save_pending_notification(r, "deleted", caption, mtype, fid)
+                except Exception as ex:
+                    logger.warning(f"save_pending failed {r}: {ex}")
+                try:
+                    logger.info(f"no_sub_notice text={repr(no_sub_notice[:100])}")
                     await bot.send_message(r, no_sub_notice, parse_mode="HTML",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                             [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -916,10 +920,10 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
     else:
         now_str = _now_str()
         no_sub = (
-            f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение было изменено</b>\n\n"
-            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
-            f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-            f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
+            f"✏️ <b>Сообщение было изменено</b>\n\n"
+            f"📅 {now_str}\n\n"
+            f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+            f"👇"
         )
         # Сохраняем событие — пользователь увидит его после оплаты подписки
         await save_pending_notification(uid, "edited", notify_text)
@@ -956,9 +960,9 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         await save_pending_notification(owner_id, "viewonce", caption, mtype, fid)
         try:
             await bot.send_message(owner_id,
-                f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
-                f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
-                f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
+                f"💣 <b>Тебе отправили исчезающее медиа</b>\n\n"
+                f"🔒 <b>Для просмотра нужна подписка.</b>\n\n"
+                f"👇",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
