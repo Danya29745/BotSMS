@@ -796,7 +796,8 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Автор: {sender}\n\n"
         f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
         f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-        f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}"
+        f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
+        f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
     )
 
     async def _deliver(to: int):
@@ -871,7 +872,8 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
             f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
             f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-            f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}"
+            f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
+            f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
         )
         try:
             await bot.send_message(uid, no_sub, parse_mode="HTML",
@@ -906,7 +908,8 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
             await bot.send_message(owner_id,
                 f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
                 f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
-                f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> /start → Тарифы\n<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}",
+                f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> /start → Тарифы\n<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
+                f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1742,8 +1745,7 @@ async def show_plans(event, state: FSMContext = None):
         f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> Сохранение удалённых сообщений\n"
         f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ История изменений сообщений\n"
         f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранение исчезающих медиа\n"
-        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> Работа через Автоматизацию Telegram\n"
-        f"<tg-emoji emoji-id=\"5242628160297641831\">🔔</tg-emoji> Мгновенные уведомления\n\n"
+        f"\n"
         f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if isinstance(event, CallbackQuery):
