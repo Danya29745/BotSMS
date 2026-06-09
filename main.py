@@ -1655,7 +1655,7 @@ async def cb_main(event, state: FSMContext = None):
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⚡ Настроить ShadowSMSq", callback_data="u:setup")],
-            [InlineKeyboardButton(text="<tg-emoji emoji-id=\"5357419403325481979\">❓</tg-emoji> Как это работает", callback_data="u:help")],
+            [InlineKeyboardButton(text="❓ Как это работает", callback_data="u:help")],
         ])
     elif subscribed or is_admin(uid):
         s = await get_user_settings(uid)
