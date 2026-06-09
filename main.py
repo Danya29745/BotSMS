@@ -104,9 +104,11 @@ def _init_db_sync():
         media_type  TEXT,
         file_id     TEXT,
         is_view_once INTEGER DEFAULT 0,
+        is_outgoing  INTEGER DEFAULT 0,
         created_at  TEXT DEFAULT (datetime('now')),
         UNIQUE(chat_id, message_id)
     );
+
     CREATE TABLE IF NOT EXISTS user_settings (
         user_id              INTEGER PRIMARY KEY,
         notify_delete        INTEGER DEFAULT 1,
@@ -157,6 +159,12 @@ def _init_db_sync():
             c.commit()
         except Exception:
             pass
+    # Миграция: добавляем is_outgoing в message_cache если ещё нет
+    try:
+        c.execute("ALTER TABLE message_cache ADD COLUMN is_outgoing INTEGER DEFAULT 0")
+        c.commit()
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -438,15 +446,15 @@ async def get_all_trial_used() -> set:
 
 async def cache_message(chat_id, message_id, user_id, username, first_name,
                         text=None, media_type=None, file_id=None,
-                        owner_id=None, is_view_once=False):
+                        owner_id=None, is_view_once=False, is_outgoing=False):
     def _f():
         c = _conn()
         c.execute("""INSERT OR REPLACE INTO message_cache
             (chat_id, message_id, owner_id, user_id, username, first_name,
-             text, media_type, file_id, is_view_once)
-            VALUES (?,?,?,?,?,?,?,?,?,?)""",
+             text, media_type, file_id, is_view_once, is_outgoing)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (chat_id, message_id, owner_id, user_id, username, first_name,
-             text, media_type, file_id, int(is_view_once)))
+             text, media_type, file_id, int(is_view_once), int(is_outgoing)))
         c.commit(); c.close()
     await _run(_f)
 
@@ -875,7 +883,6 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                 if s.get("notify_delete", 1):
                     await _deliver(r)
             else:
-                logger.info(f"_send_deleted_notify: r={r} без подписки, шлём скрытое уведомление")
                 # Сохраняем событие — пользователь увидит его после оплаты подписки
                 await save_pending_notification(r, "deleted", caption, mtype, fid)
                 try:
@@ -904,7 +911,6 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             try: await bot.send_message(uid, notify_text, parse_mode="HTML", reply_markup=_kb)
             except: pass
     else:
-        logger.info(f"_send_edited_notify: uid={uid} без подписки, шлём скрытое уведомление")
         now_str = _now_str()
         no_sub = (
             f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение было изменено</b>\n\n"
@@ -1306,11 +1312,13 @@ async def _do_cache(msg: Message, owner_id: int = None):
     await upsert_user(u.id, u.username, u.first_name)
     mtype, fid = extract_media(msg)
     view_once = is_view_once_msg(msg)
+    # Исходящее сообщение — написано самим владельцем автоматизации
+    outgoing = bool(owner_id and u.id == owner_id)
     await cache_message(
         msg.chat.id, msg.message_id,
         u.id, u.username, u.first_name,
         msg.text or msg.caption, mtype, fid,
-        owner_id=owner_id, is_view_once=view_once
+        owner_id=owner_id, is_view_once=view_once, is_outgoing=outgoing
     )
 
 @event_router.message()
@@ -1425,25 +1433,19 @@ async def on_biz_edit(msg: Message, bot: Bot):
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
-    logger.info(f"on_biz_deleted: chat_id={chat_id} event={event}")
     if not chat_id: return
     bc_id    = getattr(event, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
-    logger.info(f"on_biz_deleted: bc_id={bc_id} owner_id={owner_id} message_ids={getattr(event, 'message_ids', [])}")
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         effective_owner = owner_id or (cached.get("owner_id") if cached else None)
-        logger.info(f"on_biz_deleted: mid={mid} cached={bool(cached)} effective_owner={effective_owner}")
-        if not effective_owner:
-            logger.warning(f"on_biz_deleted: effective_owner не найден для mid={mid}, пропускаем")
-            continue
+        if not effective_owner: continue
         # Не уведомлять, если сообщение удалил сам владелец аккаунта (не собеседник)
-        if cached and cached.get("user_id") == effective_owner:
-            logger.info(f"on_biz_deleted: mid={mid} удалил сам владелец, пропускаем")
-            continue
+        # Пропускаем только если это исходящее сообщение владельца (он писал сам себе)
+        # и удаляет его тоже скорее всего он — не уведомляем о своём удалении
+        if cached and cached.get("is_outgoing"): continue
         # Если сообщение не в кэше — используем пустой словарь (бот не видел это сообщение ранее)
         data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
-        logger.info(f"on_biz_deleted: вызываем _send_deleted_notify для owner={effective_owner}")
         await _send_deleted_notify(bot, data, owner_id=effective_owner)
         if cached:
             await delete_cached_message(chat_id, mid)
