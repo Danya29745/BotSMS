@@ -2815,7 +2815,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             await call.answer("✅ Готово! Уведомление отправлено.")
         except Exception as ex:
             logger.warning(f"Не удалось отправить уведомление о бессрочной подписке {uid}: {ex}")
-            await call.answer(f"✅ Выдано, но уведомить не вышло: пользователь не запускал бота", show_alert=True)
+            await call.answer(f"✅ Выдано, но уведомить не вышло: {ex}", show_alert=True)
     else:
         await safe_edit(call,
             f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Подписка выдана!</b>\n\n"
