@@ -1083,7 +1083,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
             ]))
-        return True
+        return False
 
     file_path = None
     _lk_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]])
@@ -2169,21 +2169,9 @@ async def flush_pending_notifications(bot: Bot, uid: int):
             cap   = item["caption"] or ""
             mtype = item.get("media_type")
             fid   = item.get("file_id")
-            if etype == "viewonce" and fid and mtype:
-                send_fn = {
-                    "фото":          bot.send_photo,
-                    "видео":         bot.send_video,
-                    "видеосообщение": bot.send_video_note,
-                    "голосовое":     bot.send_voice,
-                }.get(mtype)
-                if send_fn:
-                    if mtype == "видеосообщение":
-                        await send_fn(uid, fid)
-                        await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
-                    else:
-                        await send_fn(uid, fid, caption=cap, parse_mode="HTML", reply_markup=_kb)
-                else:
-                    await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+            if etype == "viewonce":
+                # file_id исчезающего медиа Telegram не позволяет переслать — шлём только caption
+                await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
             elif etype == "deleted" and fid and mtype:
                 send_fn = {
                     "фото":           bot.send_photo,
