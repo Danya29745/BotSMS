@@ -2780,8 +2780,8 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             reply_markup=adm_back_kb())
         try:
             await call.bot.send_message(uid,
-                f"🎁 <b>Эксклюзивный подарок!</b>\n\n"
-                f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5290034776655297138\">♾</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
                 f"♾ Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start</i>",
                 parse_mode="HTML")
@@ -2836,16 +2836,16 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
     try:
         if is_forever:
             user_text = (
-                f"🎁 <b>Эксклюзивный подарок!</b>\n\n"
-                f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5290034776655297138\">♾</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
                 f"♾ Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start</i>"
             )
         else:
             user_text = (
-                f"🎉 <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
                 f"⏳ Срок: <b>{days} дн.</b>\n"
-                f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
                 f"<i>Используй /start</i>"
             )
         await msg.bot.send_message(uid, user_text, parse_mode="HTML")
