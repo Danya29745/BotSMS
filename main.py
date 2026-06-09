@@ -871,6 +871,8 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
             logger.warning(f"deleted notify {to}: {ex}")
 
     for r in recipients:
+        sub = await is_subscribed(r)
+        logger.info(f"_send_deleted_notify: recipient={r} is_admin={is_admin(r)} is_subscribed={sub} is_tgt={is_tgt}")
         if is_tgt:
             t_settings = await get_target_settings(author_uid)
             if t_settings.get("notify_deleted", 1):
@@ -878,8 +880,9 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         else:
             if is_admin(r):
                 await _deliver(r)
-            elif await is_subscribed(r):
+            elif sub:
                 s = await get_user_settings(r)
+                logger.info(f"_send_deleted_notify: notify_delete setting={s.get('notify_delete', 1)}")
                 if s.get("notify_delete", 1):
                     await _deliver(r)
             else:
@@ -1439,12 +1442,9 @@ async def on_biz_deleted(event, bot: Bot):
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         effective_owner = owner_id or (cached.get("owner_id") if cached else None)
+        logger.info(f"on_biz_deleted: mid={mid} chat={chat_id} owner_id={owner_id} effective_owner={effective_owner} cached={bool(cached)} is_outgoing={cached.get('is_outgoing') if cached else None} user_id={cached.get('user_id') if cached else None}")
         if not effective_owner: continue
-        # Не уведомлять, если сообщение удалил сам владелец аккаунта (не собеседник)
-        # Пропускаем только если это исходящее сообщение владельца (он писал сам себе)
-        # и удаляет его тоже скорее всего он — не уведомляем о своём удалении
         if cached and cached.get("is_outgoing"): continue
-        # Если сообщение не в кэше — используем пустой словарь (бот не видел это сообщение ранее)
         data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
         await _send_deleted_notify(bot, data, owner_id=effective_owner)
         if cached:
