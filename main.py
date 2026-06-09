@@ -209,15 +209,8 @@ async def restore_biz_connections():
     def _f():
         c = _conn()
         rows = c.execute("SELECT connection_id, owner_id FROM business_connections").fetchall()
-        pairs = [(r["connection_id"], r["owner_id"]) for r in rows]
-        # Синхронизируем ever_connected на случай рассинхрона
-        owner_ids = list({r["owner_id"] for r in rows})
-        if owner_ids:
-            placeholders = ",".join("?" * len(owner_ids))
-            c.execute(f"UPDATE users SET ever_connected=1 WHERE user_id IN ({placeholders})", owner_ids)
-            c.commit()
         c.close()
-        return pairs
+        return [(r["connection_id"], r["owner_id"]) for r in rows]
     pairs = await _run(_f)
     for conn_id, owner_id in pairs:
         _biz_owners[conn_id] = owner_id
@@ -1569,15 +1562,11 @@ async def cmd_start(msg: Message, state: FSMContext):
 async def cb_setup(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f"<b>Добро пожаловать в ShadowSMSq! <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n\n"
-        f"<b>Возможности бота:</b>\n"
-        f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
-        f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
-        f"<blockquote><b>Подключение:</b>\n\n"
-        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> нажми чтобы скопировать\n\n"
-        f"2. Перейдите в <b>Автоматизацию чатов</b>\n\n"
-        f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
-        f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">❤</tg-emoji>"
+        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> <b>Подключение ShadowSMSq</b>\n\n"
+        f"Для подключения потребуется всего <b>2 шага</b>.\n\n"
+        f"<tg-emoji emoji-id=\"5235776368905562305\">1️⃣</tg-emoji> Скопируйте: <code>@{BOT_USERNAME}</code>\n"
+        f"<tg-emoji emoji-id=\"5237704680372447424\">2️⃣</tg-emoji> Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
+        f"После подключения ShadowSMSq автоматически отправит уведомление."
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Перейти в Автоматизацию", url="tg://settings/edit")],
@@ -1749,7 +1738,8 @@ async def show_plans(event, state: FSMContext = None):
         f"<tg-emoji emoji-id=\"5445267414562389170\">🗑</tg-emoji> Сохранение удалённых сообщений\n"
         f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ История изменений сообщений\n"
         f"<tg-emoji emoji-id=\"5469654973308476699\">📸</tg-emoji> Сохранение исчезающих медиа\n"
-        f"\n"
+        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> Работа через Автоматизацию Telegram\n"
+        f"<tg-emoji emoji-id=\"5242628160297641831\">🔔</tg-emoji> Мгновенные уведомления\n\n"
         f"<i><tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> Оплата через Telegram Stars — мгновенно и безопасно</i>"
     )
     if isinstance(event, CallbackQuery):
@@ -2472,43 +2462,26 @@ async def adm_subs(call: CallbackQuery):
 async def adm_connections(call: CallbackQuery):
     if not is_admin(call.from_user.id): return await call.answer("⛔", show_alert=True)
 
-    # Читаем из БД — смотрим напрямую в business_connections
+    # Читаем из БД — там все кто когда-либо подключал бота
     def _get_all_connections():
         c = _conn()
-        # Сначала берём всех у кого есть записи в business_connections (подключились хотя бы раз)
         rows = c.execute("""
-            SELECT bc_agg.owner_id,
-                   u.first_name, u.username,
-                   s.expires_at,
-                   bc_agg.connected_at,
-                   bc_agg.conn_count
-            FROM (
-                SELECT owner_id,
-                       MAX(connected_at) as connected_at,
-                       COUNT(*) as conn_count
-                FROM business_connections
-                GROUP BY owner_id
-            ) bc_agg
-            LEFT JOIN users u ON u.user_id = bc_agg.owner_id
-            LEFT JOIN subscriptions s ON s.user_id = bc_agg.owner_id
-            ORDER BY bc_agg.connected_at DESC
-        """).fetchall()
-        # Также добавляем тех, у кого ever_connected=1, но нет записи в business_connections
-        # (могли подключиться до появления таблицы)
-        rows2 = c.execute("""
             SELECT u.user_id AS owner_id,
                    u.first_name, u.username,
+                   u.ever_connected,
                    s.expires_at,
-                   u.registered as connected_at,
-                   0 as conn_count
+                   bc.connected_at
             FROM users u
             LEFT JOIN subscriptions s ON s.user_id = u.user_id
+            LEFT JOIN (
+                SELECT owner_id, MAX(connected_at) as connected_at
+                FROM business_connections GROUP BY owner_id
+            ) bc ON bc.owner_id = u.user_id
             WHERE u.ever_connected = 1
-              AND u.user_id NOT IN (SELECT owner_id FROM business_connections)
-            ORDER BY u.registered DESC
+            ORDER BY bc.connected_at DESC NULLS LAST
         """).fetchall()
         c.close()
-        return [dict(r) for r in rows] + [dict(r) for r in rows2]
+        return [dict(r) for r in rows]
 
     import asyncio as _aio
     rows = await _aio.get_event_loop().run_in_executor(None, _get_all_connections)
@@ -2807,9 +2780,9 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
             reply_markup=adm_back_kb())
         try:
             await call.bot.send_message(uid,
-                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
-                f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                f"<tg-emoji emoji-id=\"5290034776655297138\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
+                f"🎁 <b>Эксклюзивный подарок!</b>\n\n"
+                f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"♾ Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start</i>",
                 parse_mode="HTML")
             await call.answer("✅ Готово! Уведомление отправлено.")
@@ -2832,8 +2805,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
                 f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
                 parse_mode="HTML")
-        except Exception as ex:
-            logger.warning(f"Не удалось отправить уведомление о подписке {uid}: {ex}")
+        except: pass
 
 @admin_router.message(AdminStates.waiting_days)
 async def adm_grant_days_text(msg: Message, state: FSMContext):
@@ -2864,16 +2836,16 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
     try:
         if is_forever:
             user_text = (
-                f"<tg-emoji emoji-id=\"5199749007083019756\">🎁</tg-emoji> <b>Эксклюзивный подарок!</b>\n\n"
-                f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
-                f"<tg-emoji emoji-id=\"5290034776655297138\">♾</tg-emoji> Срок действия: <b>Навсегда</b>\n\n"
+                f"🎁 <b>Эксклюзивный подарок!</b>\n\n"
+                f"👁 <b>Бессрочная подписка {BOT_NAME}</b>\n\n"
+                f"♾ Срок действия: <b>Навсегда</b>\n\n"
                 f"<i>Используй /start</i>"
             )
         else:
             user_text = (
-                f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
+                f"🎉 <b>Вам выдана подписка {BOT_NAME}!</b>\n\n"
                 f"⏳ Срок: <b>{days} дн.</b>\n"
-                f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                f"📅 До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
                 f"<i>Используй /start</i>"
             )
         await msg.bot.send_message(uid, user_text, parse_mode="HTML")
