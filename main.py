@@ -875,6 +875,7 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                 if s.get("notify_delete", 1):
                     await _deliver(r)
             else:
+                logger.info(f"_send_deleted_notify: r={r} без подписки, шлём скрытое уведомление")
                 # Сохраняем событие — пользователь увидит его после оплаты подписки
                 await save_pending_notification(r, "deleted", caption, mtype, fid)
                 try:
@@ -903,6 +904,7 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             try: await bot.send_message(uid, notify_text, parse_mode="HTML", reply_markup=_kb)
             except: pass
     else:
+        logger.info(f"_send_edited_notify: uid={uid} без подписки, шлём скрытое уведомление")
         now_str = _now_str()
         no_sub = (
             f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение было изменено</b>\n\n"
@@ -1423,17 +1425,25 @@ async def on_biz_edit(msg: Message, bot: Bot):
 @event_router.deleted_business_messages()
 async def on_biz_deleted(event, bot: Bot):
     chat_id = getattr(getattr(event, "chat", None), "id", None)
+    logger.info(f"on_biz_deleted: chat_id={chat_id} event={event}")
     if not chat_id: return
     bc_id    = getattr(event, "business_connection_id", None)
     owner_id = await resolve_biz_owner(bc_id, bot)
+    logger.info(f"on_biz_deleted: bc_id={bc_id} owner_id={owner_id} message_ids={getattr(event, 'message_ids', [])}")
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
         effective_owner = owner_id or (cached.get("owner_id") if cached else None)
-        if not effective_owner: continue
+        logger.info(f"on_biz_deleted: mid={mid} cached={bool(cached)} effective_owner={effective_owner}")
+        if not effective_owner:
+            logger.warning(f"on_biz_deleted: effective_owner не найден для mid={mid}, пропускаем")
+            continue
         # Не уведомлять, если сообщение удалил сам владелец аккаунта (не собеседник)
-        if cached and cached.get("user_id") == effective_owner: continue
+        if cached and cached.get("user_id") == effective_owner:
+            logger.info(f"on_biz_deleted: mid={mid} удалил сам владелец, пропускаем")
+            continue
         # Если сообщение не в кэше — используем пустой словарь (бот не видел это сообщение ранее)
         data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
+        logger.info(f"on_biz_deleted: вызываем _send_deleted_notify для owner={effective_owner}")
         await _send_deleted_notify(bot, data, owner_id=effective_owner)
         if cached:
             await delete_cached_message(chat_id, mid)
