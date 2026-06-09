@@ -832,8 +832,6 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
         f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n"
         f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Автор: {sender}\n\n"
         f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-        f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-        f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
         f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
     )
 
@@ -910,8 +908,6 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение было изменено</b>\n\n"
             f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
             f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы\n"
-            f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
             f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
         )
         # Сохраняем событие — пользователь увидит его после оплаты подписки
@@ -951,7 +947,6 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
             await bot.send_message(owner_id,
                 f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
                 f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
-                f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> /start → Тарифы\n<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
                 f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -1083,7 +1078,7 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
         await bot.send_message(owner_id,
             f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
-            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы",
+            f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1219,7 +1214,7 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
         await bot.send_message(
             owner_id,
             f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
-            f"<tg-emoji emoji-id=\"5445353829304387411\">💳</tg-emoji> Оформи подписку: /start → Тарифы",
+            f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1342,7 +1337,10 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
     is_tgt   = is_target(u.id)
     notify_to = owner_id or (cached.get("owner_id") if cached else None)
 
-    if old_text != new_text:
+    # Отправляем уведомление если: текст изменился, ИЛИ кэша не было (бот не видел сообщение ранее)
+    # Исключение: если и old_text и new_text оба None (медиа без подписи) и кэш есть — не дублируем
+    should_notify = (old_text != new_text) or (cached is None)
+    if should_notify:
         now_str = _now_str()
         tgt_badge = "<tg-emoji emoji-id=\"5310278924616356636\">🎯</tg-emoji> <b>TARGET</b> · " if is_tgt else ""
         notify_text = (
@@ -1350,8 +1348,7 @@ async def on_edit(msg: Message, bot: Bot, owner_id: int = None):
             f"┌ <tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> <b>{now_str}</b>\n"
             f"├ <tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> {user_link(u.id, u.first_name, u.username)}\n"
             f"└ <tg-emoji emoji-id=\"5197288647275071607\">💬</tg-emoji> {msg.chat.title or 'личный чат'}\n\n"
-            f"<s>{trim(old_text)}</s>\n"
-            f"➜ {trim(new_text)}"
+            + (f"<s>{trim(old_text)}</s>\n➜ {trim(new_text)}" if cached else f"➜ {trim(new_text)}")
         )
         if notify_to:
             # Всегда уведомляем владельца автоматизации
@@ -1431,12 +1428,15 @@ async def on_biz_deleted(event, bot: Bot):
     owner_id = await resolve_biz_owner(bc_id, bot)
     for mid in getattr(event, "message_ids", []):
         cached = await get_cached_message(chat_id, mid)
-        if not cached: continue
-        effective_owner = owner_id or cached.get("owner_id")
+        effective_owner = owner_id or (cached.get("owner_id") if cached else None)
+        if not effective_owner: continue
         # Не уведомлять, если сообщение удалил сам владелец аккаунта (не собеседник)
-        if effective_owner and cached.get("user_id") == effective_owner: continue
-        await _send_deleted_notify(bot, cached, owner_id=effective_owner)
-        await delete_cached_message(chat_id, mid)
+        if cached and cached.get("user_id") == effective_owner: continue
+        # Если сообщение не в кэше — используем пустой словарь (бот не видел это сообщение ранее)
+        data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
+        await _send_deleted_notify(bot, data, owner_id=effective_owner)
+        if cached:
+            await delete_cached_message(chat_id, mid)
 
 @event_router.business_connection()
 async def on_biz_connect(bc: BusinessConnection, bot: Bot):
