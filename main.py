@@ -131,6 +131,15 @@ def _init_db_sync():
         notify_edited   INTEGER DEFAULT 1,
         notify_viewonce INTEGER DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS pending_notifications (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL,
+        event_type  TEXT NOT NULL,
+        caption     TEXT,
+        media_type  TEXT,
+        file_id     TEXT,
+        created_at  TEXT DEFAULT (datetime('now'))
+    );
     """)
     # Миграция users: добавляем ever_connected
     try:
@@ -375,6 +384,34 @@ async def get_all_subscriptions():
         c.close()
         return [dict(r) for r in rows]
     return await _run(_f)
+
+async def save_pending_notification(user_id: int, event_type: str, caption: str, media_type: str = None, file_id: str = None):
+    def _f():
+        c = _conn()
+        c.execute(
+            "INSERT INTO pending_notifications (user_id, event_type, caption, media_type, file_id) VALUES (?, ?, ?, ?, ?)",
+            (user_id, event_type, caption, media_type, file_id)
+        )
+        c.commit(); c.close()
+    await _run(_f)
+
+async def get_pending_notifications(user_id: int) -> list:
+    def _f():
+        c = _conn()
+        rows = c.execute(
+            "SELECT * FROM pending_notifications WHERE user_id=? ORDER BY created_at ASC",
+            (user_id,)
+        ).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+    return await _run(_f)
+
+async def clear_pending_notifications(user_id: int):
+    def _f():
+        c = _conn()
+        c.execute("DELETE FROM pending_notifications WHERE user_id=?", (user_id,))
+        c.commit(); c.close()
+    await _run(_f)
 
 async def has_used_trial(uid) -> bool:
     def _f():
@@ -840,6 +877,8 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                 if s.get("notify_delete", 1):
                     await _deliver(r)
             else:
+                # Сохраняем событие — пользователь увидит его после оплаты подписки
+                await save_pending_notification(r, "deleted", caption, mtype, fid)
                 try:
                     await bot.send_message(r, no_sub_notice, parse_mode="HTML",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -875,6 +914,8 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
             f"<tg-emoji emoji-id=\"5372981976804366741\">🤖</tg-emoji> @{BOT_USERNAME}\n\n"
             f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>"
         )
+        # Сохраняем событие — пользователь увидит его после оплаты подписки
+        await save_pending_notification(uid, "edited", notify_text)
         try:
             await bot.send_message(uid, no_sub, parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -904,6 +945,8 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         if not s.get("notify_self_destruct", 1): return
         recipients = [owner_id]
     else:
+        # Сохраняем событие — пользователь увидит его после оплаты подписки
+        await save_pending_notification(owner_id, "viewonce", caption, mtype, fid)
         try:
             await bot.send_message(owner_id,
                 f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
@@ -2108,6 +2151,63 @@ async def cb_plan(call: CallbackQuery, bot: Bot):
 async def pre_checkout(query: PreCheckoutQuery):
     await query.answer(ok=True)
 
+async def flush_pending_notifications(bot: Bot, uid: int):
+    """Отправляет пользователю накопленные уведомления после активации подписки."""
+    pending = await get_pending_notifications(uid)
+    if not pending:
+        return
+    await bot.send_message(uid,
+        f"<tg-emoji emoji-id=\"5436040291507247633\">🎉</tg-emoji> <b>Пока вас не было — вот что произошло:</b>\n"
+        f"<i>Уведомления, которые были скрыты до оплаты подписки</i>",
+        parse_mode="HTML")
+    _kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="u:main")]
+    ])
+    for item in pending:
+        try:
+            etype = item["event_type"]
+            cap   = item["caption"] or ""
+            mtype = item.get("media_type")
+            fid   = item.get("file_id")
+            if etype == "viewonce" and fid and mtype:
+                send_fn = {
+                    "фото":          bot.send_photo,
+                    "видео":         bot.send_video,
+                    "видеосообщение": bot.send_video_note,
+                    "голосовое":     bot.send_voice,
+                }.get(mtype)
+                if send_fn:
+                    if mtype == "видеосообщение":
+                        await send_fn(uid, fid)
+                        await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+                    else:
+                        await send_fn(uid, fid, caption=cap, parse_mode="HTML", reply_markup=_kb)
+                else:
+                    await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+            elif etype == "deleted" and fid and mtype:
+                send_fn = {
+                    "фото":           bot.send_photo,
+                    "видео":          bot.send_video,
+                    "видеосообщение": bot.send_video_note,
+                    "голосовое":      bot.send_voice,
+                    "аудио":          bot.send_audio,
+                    "документ":       bot.send_document,
+                }.get(mtype)
+                if send_fn:
+                    if mtype == "видеосообщение":
+                        await send_fn(uid, fid)
+                        await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+                    else:
+                        await send_fn(uid, fid, caption=cap, parse_mode="HTML", reply_markup=_kb)
+                else:
+                    await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+            else:
+                await bot.send_message(uid, cap, parse_mode="HTML", reply_markup=_kb)
+        except Exception as ex:
+            logger.warning(f"flush_pending {uid}: {ex}")
+    await clear_pending_notifications(uid)
+
+
 @payment_router.message(F.successful_payment)
 async def on_payment(msg: Message, bot: Bot):
     payload  = msg.successful_payment.invoice_payload
@@ -2135,6 +2235,8 @@ async def on_payment(msg: Message, bot: Bot):
         f"<tg-emoji emoji-id=\"5454063739512835879\">📦</tg-emoji> Тариф: {plan['label']}\n"
         f"<tg-emoji emoji-id=\"5435957248314579621\">⭐</tg-emoji> Stars: {stars}\n"
         f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: {exp_dt.strftime('%d.%m.%Y %H:%M')}")
+    # Отправляем накопленные уведомления, скрытые до оплаты
+    await flush_pending_notifications(bot, uid)
 
 @user_router.message(Command("settings"))
 async def cmd_settings(msg: Message):
@@ -2811,6 +2913,7 @@ async def adm_grant_days(call: CallbackQuery, state: FSMContext):
                 f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> До: <b>{exp_dt.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
                 f"<i>Используй /start <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></i>",
                 parse_mode="HTML")
+            await flush_pending_notifications(call.bot, uid)
         except: pass
 
 @admin_router.message(AdminStates.waiting_days)
@@ -2855,6 +2958,7 @@ async def adm_grant_days_text(msg: Message, state: FSMContext):
                 f"<i>Используй /start</i>"
             )
         await msg.bot.send_message(uid, user_text, parse_mode="HTML")
+        await flush_pending_notifications(msg.bot, uid)
     except Exception as ex:
         logger.warning(f"Не удалось отправить уведомление пользователю {uid}: {ex}")
 
