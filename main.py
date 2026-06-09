@@ -1562,11 +1562,15 @@ async def cmd_start(msg: Message, state: FSMContext):
 async def cb_setup(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f"<tg-emoji emoji-id=\"5431449001532594346\">⚡</tg-emoji> <b>Подключение ShadowSMSq</b>\n\n"
-        f"Для подключения потребуется всего <b>2 шага</b>.\n\n"
-        f"<tg-emoji emoji-id=\"5235776368905562305\">1️⃣</tg-emoji> Скопируйте: <code>@{BOT_USERNAME}</code>\n"
-        f"<tg-emoji emoji-id=\"5237704680372447424\">2️⃣</tg-emoji> Добавьте его в <b>Автоматизацию Telegram</b>\n\n"
-        f"После подключения ShadowSMSq автоматически отправит уведомление."
+        f"<b>Добро пожаловать в ShadowSMSq! <tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji></b>\n\n"
+        f"<b>Возможности бота:</b>\n"
+        f"• <i>Моментально пришлёт уведомление, если ваш собеседник изменит или удалит сообщение</i>\n"
+        f"• <i>Может сохранять медиа с обратным отсчётом: фото/видео/голосовые/кружки</i>\n\n"
+        f"<blockquote><b>Подключение:</b>\n\n"
+        f"1. Скопируйте Username бота: <code>@{BOT_USERNAME}</code> нажми чтобы скопировать\n\n"
+        f"2. Перейдите в <b>Автоматизацию чатов</b>\n\n"
+        f"3. Вставьте в поле для ввода: <code>@{BOT_USERNAME}</code></blockquote>\n\n"
+        f"Бот сам пришлёт уведомление после подключения. <tg-emoji emoji-id=\"5449505950283078474\">❤</tg-emoji>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Перейти в Автоматизацию", url="tg://settings/edit")],
