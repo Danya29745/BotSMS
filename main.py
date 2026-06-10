@@ -11,6 +11,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
+# Множество (chat_id, message_id) сообщений отправленных самим ботом — игнорируем их удаление
+_bot_message_ids: set[tuple] = set()
+
 
 # Московское время (UTC+3) для отображения в уведомлениях
 _MSK = timezone(timedelta(hours=3))
@@ -589,7 +592,9 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
                                 None, None, owner_id=call.from_user.id, is_outgoing=True)
             await msg.delete()
         except: pass
-        try: await msg.answer(text, parse_mode="HTML", **kwargs)
+        try:
+            sent = await msg.answer(text, parse_mode="HTML", **kwargs)
+            if sent: _bot_message_ids.add((sent.chat.id, sent.message_id))
         except: pass
 
 # Кэши file_id для фото разделов (взрыв-анимация)
@@ -639,8 +644,10 @@ async def send_with_explosion(call: CallbackQuery, section: str, text: str, kb, 
             )
             if not use_cached and sent.photo:
                 _section_photo_cache[section] = sent.photo[-1].file_id
+            _bot_message_ids.add((sent.chat.id, sent.message_id))
         else:
-            await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+            sent = await msg.answer(text, reply_markup=kb, parse_mode="HTML")
+            _bot_message_ids.add((sent.chat.id, sent.message_id))
     except Exception as ex:
         logger.warning(f"send_with_explosion [{section}] error: {ex}")
         try:
@@ -1465,7 +1472,9 @@ async def on_biz_deleted(event, bot: Bot):
         logger.info(f"on_biz_deleted: mid={mid} chat={chat_id} owner_id={owner_id} effective_owner={effective_owner} cached={bool(cached)} is_outgoing={cached.get('is_outgoing') if cached else None} user_id={cached.get('user_id') if cached else None}")
         if not effective_owner: continue
         # Игнорируем удаление сообщений самого бота (служебные сообщения меню)
-        if not cached and chat_id == effective_owner: continue
+        if (chat_id, mid) in _bot_message_ids:
+            _bot_message_ids.discard((chat_id, mid))
+            continue
         if cached and cached.get("is_outgoing"): continue
         data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
         await _send_deleted_notify(bot, data, owner_id=effective_owner)
