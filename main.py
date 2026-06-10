@@ -6,29 +6,11 @@
 import asyncio
 import logging
 import os
-import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
-def _strip_tg_emoji(text: str) -> str:
-    """Убирает tg-emoji теги, оставляя fallback-символ внутри."""
-    return re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text)
-
-async def _safe_send(bot, chat_id, text, **kwargs):
-    """Отправляет сообщение; если DOCUMENT_INVALID — повторяет без tg-emoji."""
-    try:
-        return await bot.send_message(chat_id, text, **kwargs)
-    except Exception as ex:
-        if "DOCUMENT_INVALID" in str(ex):
-            clean = _strip_tg_emoji(text)
-            try:
-                return await bot.send_message(chat_id, clean, **kwargs)
-            except Exception as ex2:
-                logger.warning(f"_safe_send fallback failed {chat_id}: {ex2}")
-        else:
-            raise
 
 # Московское время (UTC+3) для отображения в уведомлениях
 _MSK = timezone(timedelta(hours=3))
@@ -876,7 +858,11 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                     "аудио":          bot.send_audio,
                     "документ":       bot.send_document,
                 }.get(mtype)
-                if send_fn:
+                if mtype == "стикер":
+                    # Стикер отправляем как стикер + caption отдельным сообщением
+                    await bot.send_sticker(to, fid)
+                    await bot.send_message(to, caption, parse_mode="HTML", reply_markup=_kb)
+                elif send_fn:
                     if mtype == "видеосообщение":
                         await send_fn(to, fid)
                         await bot.send_message(to, caption, parse_mode="HTML", reply_markup=_kb)
@@ -912,7 +898,7 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
                     logger.warning(f"save_pending failed {r}: {ex}")
                 try:
                     logger.info(f"no_sub_notice text={repr(no_sub_notice[:100])}")
-                    await _safe_send(bot, r, no_sub_notice, parse_mode="HTML",
+                    await bot.send_message(r, no_sub_notice, parse_mode="HTML",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                             [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
                         ]))
@@ -947,7 +933,7 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
         # Сохраняем событие — пользователь увидит его после оплаты подписки
         await save_pending_notification(uid, "edited", notify_text)
         try:
-            await _safe_send(bot, uid, no_sub, parse_mode="HTML",
+            await bot.send_message(uid, no_sub, parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
                 ]))
@@ -978,7 +964,7 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         # Сохраняем событие — пользователь увидит его после оплаты подписки
         await save_pending_notification(owner_id, "viewonce", caption, mtype, fid)
         try:
-            await _safe_send(bot, owner_id,
+            await bot.send_message(owner_id,
                 f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
                 f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
                 f"<tg-emoji emoji-id=\"5253698444673613733\">👇</tg-emoji>",
@@ -1110,8 +1096,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
 
     # Проверяем подписку
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
-        await _safe_send(bot, owner_id,
-            f"🔒 <b>Скачивание файлов доступно только по подписке</b>\n\n"
+        await bot.send_message(owner_id,
+            f"<tg-emoji emoji-id=\"5197288647275071607\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
             f"👇",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -1472,6 +1458,8 @@ async def on_biz_deleted(event, bot: Bot):
         effective_owner = owner_id or (cached.get("owner_id") if cached else None)
         logger.info(f"on_biz_deleted: mid={mid} chat={chat_id} owner_id={owner_id} effective_owner={effective_owner} cached={bool(cached)} is_outgoing={cached.get('is_outgoing') if cached else None} user_id={cached.get('user_id') if cached else None}")
         if not effective_owner: continue
+        # Игнорируем удаление сообщений самого бота (служебные сообщения меню)
+        if not cached and chat_id == effective_owner: continue
         if cached and cached.get("is_outgoing"): continue
         data = cached if cached else {"user_id": None, "first_name": "Неизвестно", "username": None, "text": None, "media_type": None, "file_id": None}
         await _send_deleted_notify(bot, data, owner_id=effective_owner)
@@ -1491,7 +1479,7 @@ async def on_biz_connect(bc: BusinessConnection, bot: Bot):
 
     if not bc.is_enabled:
         try:
-            await _safe_send(bot, uid,
+            await bot.send_message(uid,
                 f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>{BOT_NAME} отключён</b>\n\n"
                 f"Вы отключили бота от своего аккаунта.\n"
                 f"Чтобы снова подключить — нажмите кнопку ниже <tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>",
