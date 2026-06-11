@@ -2306,8 +2306,8 @@ async def cmd_connect(msg: Message, state: FSMContext):
     await btn_connect(msg, state)
 
 
-@user_router.message(Command("cabinet"))
-async def cmd_cabinet(msg: Message, state: FSMContext):
+@user_router.message(Command("menu"))
+async def cmd_menu(msg: Message, state: FSMContext):
     await cb_main(msg, state)
 
 
@@ -3147,7 +3147,7 @@ async def main():
     await restore_targets()
     await bot.set_my_commands([
         BotCommand(command="connect",  description="⚡️ Подключить бота"),
-        BotCommand(command="cabinet",  description="👤 Личный кабинет"),
+        BotCommand(command="menu",     description="🏠 Главное меню"),
         BotCommand(command="help",     description="❓ Инструкция"),
     ])
     # Запускаем фоновую задачу проверки истёкших подписок
