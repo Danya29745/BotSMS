@@ -607,6 +607,7 @@ _section_photo_cache: dict[str, str | None] = {
     "plans":     None,
     "settings":  None,
     "setup":     None,
+    "expired":   None,
 }
 _SECTION_PHOTO_FILES = {
     "help":     "help_image.jpg",
@@ -614,6 +615,7 @@ _SECTION_PHOTO_FILES = {
     "plans":    "plans_image.jpg",
     "settings": "notifications_image.jpg",
     "setup":    "start_image.jpg",
+    "expired":  "expired_image.jpg",
 }
 
 async def send_with_explosion(call: CallbackQuery, section: str, text: str, kb, bot: Bot = None):
@@ -855,11 +857,11 @@ async def _send_deleted_notify(bot: Bot, cached: dict, owner_id: int = None):
     )
 
     no_sub_notice = (
-        f"👁 <b>Сообщение было удалено</b>\n\n"
-        f"📅 {now_str}\n"
-        f"👤 Автор: {sender}\n\n"
-        f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-        f"👇"
+        f"<tg-emoji emoji-id=\"5424892643760937442\">👁</tg-emoji> <b>Сообщение было удалено</b>\n\n"
+        f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n"
+        f"<tg-emoji emoji-id=\"5373012449597335010\">👤</tg-emoji> Автор: {sender}\n\n"
+        f"<tg-emoji emoji-id=\"5879895758202735862\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+        f"<tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>"
     )
 
     async def _deliver(to: int):
@@ -943,10 +945,10 @@ async def _send_edited_notify(bot: Bot, uid: int, notify_text: str, is_tgt: bool
     else:
         now_str = _now_str()
         no_sub = (
-            f"✏️ <b>Сообщение было изменено</b>\n\n"
-            f"📅 {now_str}\n\n"
-            f"🔒 <b>Для просмотра содержимого нужна подписка.</b>\n\n"
-            f"👇"
+            f"<tg-emoji emoji-id=\"5334673106202010226\">✏</tg-emoji>️ <b>Сообщение было изменено</b>\n\n"
+            f"<tg-emoji emoji-id=\"5274055917766202507\">📅</tg-emoji> {now_str}\n\n"
+            f"<tg-emoji emoji-id=\"5879895758202735862\">🔒</tg-emoji> <b>Для просмотра содержимого нужна подписка.</b>\n\n"
+            f"<tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>"
         )
         # Сохраняем событие — пользователь увидит его после оплаты подписки
         await save_pending_notification(uid, "edited", notify_text)
@@ -983,9 +985,9 @@ async def _send_view_once_notify(bot: Bot, msg: Message, owner_id: int, mtype: s
         await save_pending_notification(owner_id, "viewonce", caption, mtype, fid)
         try:
             await bot.send_message(owner_id,
-                f"💣 <b>Тебе отправили исчезающее медиа</b>\n\n"
-                f"🔒 <b>Для просмотра нужна подписка.</b>\n\n"
-                f"👇",
+                f"<tg-emoji emoji-id=\"5469654973308476699\">💣</tg-emoji> <b>Тебе отправили исчезающее медиа</b>\n\n"
+                f"<tg-emoji emoji-id=\"5879895758202735862\">🔒</tg-emoji> <b>Для просмотра нужна подписка.</b>\n\n"
+                f"<tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1115,8 +1117,8 @@ async def _handle_reply_download(bot: Bot, msg: Message, owner_id: int):
     # Проверяем подписку
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
         await bot.send_message(owner_id,
-            f"🔒 <b>Скачивание файлов доступно только по подписке</b>\n\n"
-            f"👇",
+            f"<tg-emoji emoji-id=\"5879895758202735862\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
+            f"<tg-emoji emoji-id=\"5470177992950946662\">👇</tg-emoji>",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Купить подписку", callback_data="u:plans")]
@@ -1256,7 +1258,7 @@ async def _handle_reaction_download(bot: Bot, reaction_event, owner_id: int):
     if not is_admin(owner_id) and not await is_subscribed(owner_id):
         await bot.send_message(
             owner_id,
-            f"🔒 <b>Скачивание файлов доступно только по подписке</b>\n\n"
+            f"<tg-emoji emoji-id=\"5879895758202735862\">🔒</tg-emoji> <b>Скачивание файлов доступно только по подписке</b>\n\n"
             f"👇",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -1790,7 +1792,8 @@ async def cb_main(event, state: FSMContext = None):
         ])
 
     if isinstance(event, CallbackQuery):
-        await send_with_explosion(event, "main", text, kb)
+        section = "expired" if (not subscribed and not is_admin(uid) and connected) else "main"
+        await send_with_explosion(event, section, text, kb)
         await event.answer()
     else:
         await event.answer(text, reply_markup=kb, parse_mode="HTML")
