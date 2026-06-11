@@ -594,7 +594,10 @@ async def safe_edit(call: CallbackQuery, text: str, **kwargs):
         except: pass
         try:
             sent = await msg.answer(text, parse_mode="HTML", **kwargs)
-            if sent: _bot_message_ids.add((sent.chat.id, sent.message_id))
+            if sent:
+                _bot_message_ids.add((sent.chat.id, sent.message_id))
+                await cache_message(sent.chat.id, sent.message_id, call.from_user.id,
+                                    None, None, owner_id=call.from_user.id, is_outgoing=True)
         except: pass
 
 # Кэши file_id для фото разделов (взрыв-анимация)
@@ -648,6 +651,8 @@ async def send_with_explosion(call: CallbackQuery, section: str, text: str, kb, 
         else:
             sent = await msg.answer(text, reply_markup=kb, parse_mode="HTML")
             _bot_message_ids.add((sent.chat.id, sent.message_id))
+        await cache_message(sent.chat.id, sent.message_id, call.from_user.id,
+                            None, None, owner_id=call.from_user.id, is_outgoing=True)
     except Exception as ex:
         logger.warning(f"send_with_explosion [{section}] error: {ex}")
         try:
