@@ -196,6 +196,13 @@ def _load_demo_video_cache():
         if fid:
             _demo_video_file_ids[key] = fid
 
+def _load_section_photo_cache():
+    """Загружает сохранённые file_id картинок разделов из БД при старте."""
+    for key in ("help", "main", "plans", "settings", "setup", "expired"):
+        fid = _kv_get(f"section_photo:{key}")
+        if fid:
+            _section_photo_cache[key] = fid
+
 def _run(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
 
@@ -3040,17 +3047,50 @@ async def adm_revoke_id(msg: Message, state: FSMContext):
 async def adm_get_photo_id(msg: Message):
     if not is_admin(msg.from_user.id): return
     file_id = msg.photo[-1].file_id
-    caption = msg.caption or ""
-    await msg.answer(
-        f"<tg-emoji emoji-id=\"5431577498364158238\">📊</tg-emoji> <b>file_id фото:</b>\n\n"
-        f"<code>{file_id}</code>\n\n"
-        f"Вставь нужный в .env:\n"
-        f"<code>CABINET_PHOTO_ID</code> — Личный кабинет\n"
-        f"<code>PLANS_PHOTO_ID</code> — Тарифы\n"
-        f"<code>SETTINGS_PHOTO_ID</code> — Настройки\n"
-        f"<code>HELP_PHOTO_ID</code> — Как работает бот",
-        parse_mode="HTML"
-    )
+    caption = (msg.caption or "").strip().lower()
+
+    key_map = {
+        "help": "help", "помощь": "help", "инструкция": "help",
+        "main": "main", "кабинет": "main", "главная": "main", "главное": "main",
+        "plans": "plans", "тарифы": "plans", "тариф": "plans",
+        "settings": "settings", "настройки": "settings",
+        "setup": "setup", "подключение": "setup", "подключить": "setup",
+        "expired": "expired", "истёк": "expired", "истек": "expired",
+    }
+    matched_key = None
+    for word, k in key_map.items():
+        if word in caption:
+            matched_key = k
+            break
+
+    if matched_key:
+        _section_photo_cache[matched_key] = file_id
+        _kv_set(f"section_photo:{matched_key}", file_id)
+        label = {
+            "help": "❓ Как работает бот", "main": "👤 Личный кабинет",
+            "plans": "💎 Тарифы", "settings": "⚙️ Настройки",
+            "setup": "⚡️ Подключение", "expired": "🔴 Срок доступа истёк",
+        }.get(matched_key, matched_key)
+        await msg.answer(
+            f"<tg-emoji emoji-id=\"5427009714745517609\">✅</tg-emoji> <b>Картинка сохранена навсегда!</b>\n\n"
+            f"Раздел: <b>{label}</b>\n"
+            f"<code>{file_id}</code>\n\n"
+            f"<i>Работает после перезапуска бота.</i>",
+            parse_mode="HTML"
+        )
+    else:
+        await msg.answer(
+            f"<tg-emoji emoji-id=\"5431577498364158238\">📊</tg-emoji> <b>file_id фото:</b>\n\n"
+            f"<code>{file_id}</code>\n\n"
+            f"Чтобы сохранить как картинку раздела — отправь фото с подписью:\n"
+            f"<code>main</code> — Личный кабинет\n"
+            f"<code>plans</code> — Тарифы\n"
+            f"<code>settings</code> — Настройки\n"
+            f"<code>help</code> — Как работает бот\n"
+            f"<code>setup</code> — Подключение\n"
+            f"<code>expired</code> — Срок доступа истёк",
+            parse_mode="HTML"
+        )
 
 @admin_router.message(F.video, StateFilter(None))
 async def adm_get_video_id(msg: Message):
@@ -3102,6 +3142,7 @@ async def main():
     dp.include_routers(admin_router, user_router, event_router, payment_router)
     await init_db()
     _load_demo_video_cache()
+    _load_section_photo_cache()
     await restore_biz_connections()
     await restore_targets()
     await bot.set_my_commands([
