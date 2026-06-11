@@ -1663,10 +1663,16 @@ async def cmd_start(msg: Message, state: FSMContext):
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
-            await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
+            sent = await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
+        _bot_message_ids.add((sent.chat.id, sent.message_id))
+        await cache_message(sent.chat.id, sent.message_id, u.id, u.username, u.first_name,
+                            None, None, owner_id=u.id, is_outgoing=True)
     except Exception as ex:
         logger.warning(f"start photo send error: {ex}")
-        await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
+        sent = await msg.answer(text, reply_markup=start_kb(u.id), parse_mode="HTML")
+        _bot_message_ids.add((sent.chat.id, sent.message_id))
+        await cache_message(sent.chat.id, sent.message_id, u.id, u.username, u.first_name,
+                            None, None, owner_id=u.id, is_outgoing=True)
 
 
 
@@ -1728,10 +1734,16 @@ async def cb_back_start(call: CallbackQuery):
             if not use_cached and sent.photo:
                 _start_photo_file_id = sent.photo[-1].file_id
         else:
-            await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
+            sent = await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
+        _bot_message_ids.add((sent.chat.id, sent.message_id))
+        await cache_message(sent.chat.id, sent.message_id, call.from_user.id,
+                            None, None, owner_id=call.from_user.id, is_outgoing=True)
     except Exception as ex:
         logger.warning(f"back_start photo send error: {ex}")
-        await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
+        sent = await msg.answer(text, reply_markup=start_kb(uid), parse_mode="HTML")
+        _bot_message_ids.add((sent.chat.id, sent.message_id))
+        await cache_message(sent.chat.id, sent.message_id, call.from_user.id,
+                            None, None, owner_id=call.from_user.id, is_outgoing=True)
     await call.answer()
 
 @user_router.message(F.text == "👤 Личный кабинет")
