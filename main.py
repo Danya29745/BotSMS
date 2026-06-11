@@ -1420,6 +1420,13 @@ async def on_biz_message(msg: Message, bot: Bot):
         return
 
     u = msg.from_user
+    # Сообщение от самого бота (например, тест в собственном чате владельца через бизнес-аккаунт)
+    # — считаем его исходящим от владельца, чтобы не путать с сообщением от собеседника
+    if u and u.id == bot.id:
+        await cache_message(msg.chat.id, msg.message_id, u.id, u.username, u.first_name,
+                            msg.text or msg.caption, *extract_media(msg),
+                            owner_id=owner_id, is_outgoing=True)
+        return
     # Сообщение от другого пользователя (не от самого владельца аккаунта)
     is_incoming = u and u.id != owner_id
 
