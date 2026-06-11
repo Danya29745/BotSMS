@@ -1351,13 +1351,15 @@ class AdminStates(StatesGroup):
 # ══════════════════════════════════════════════
 
 async def _do_cache(msg: Message, owner_id: int = None):
-    if not msg.from_user or msg.from_user.is_bot: return
+    if not msg.from_user: return
     u = msg.from_user
-    await upsert_user(u.id, u.username, u.first_name)
+    if not u.is_bot:
+        await upsert_user(u.id, u.username, u.first_name)
     mtype, fid = extract_media(msg)
-    view_once = is_view_once_msg(msg)
-    # Исходящее сообщение — написано самим владельцем автоматизации
-    outgoing = bool(owner_id and u.id == owner_id)
+    view_once = is_view_once_msg(msg) if not u.is_bot else False
+    # Исходящее сообщение — написано самим владельцем автоматизации,
+    # либо любым другим ботом (чтобы удаление таких сообщений не считалось "чужим")
+    outgoing = bool((owner_id and u.id == owner_id) or u.is_bot)
     await cache_message(
         msg.chat.id, msg.message_id,
         u.id, u.username, u.first_name,
